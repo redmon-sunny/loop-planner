@@ -74,15 +74,33 @@ def get(path, key, params=None, cache_dir=None, max_calls=None):
     return body
 
 
+LIST_KEYS = ('recipes', 'items', 'results', 'rows')   # a list response is an object holding several lists (ranks, categories, recipes…)
+
+
+def list_of(body):
+    """The rows of a list response: data itself when it is a list, else data.<recipes|items|results|rows>, never a sibling list."""
+    data = body.get('data', body) if isinstance(body, dict) else body
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        for k in LIST_KEYS:
+            if isinstance(data.get(k), list):
+                return data[k]
+    return []
+
+
+def is_recipe(r):
+    return isinstance(r, dict) and isinstance(r.get('skill'), dict) and 'rank' not in r
+
+
 def paged(path, key, cache_dir, max_calls=None, **params):
-    """Yield items from a list endpoint. Follows meta.next when given, else limit/offset until meta.total."""
+    """Yield rows from a list endpoint. Follows meta.next when given, else limit/offset until meta.total."""
     offset, limit = 0, 100
     while True:
         body = get(path, key, dict(params, limit=limit, offset=offset), cache_dir, max_calls)
         if body is None:
             return
-        data = body.get('data', body)
-        items = data if isinstance(data, list) else next((v for v in data.values() if isinstance(v, list) and v and isinstance(v[0], dict)), [])
+        items = list_of(body)
         for it in items:
             yield it
         meta = body.get('meta', {}) if isinstance(body, dict) else {}
@@ -334,7 +352,7 @@ def main():
         print('\n== first enchanting recipe with makes == null (shape of `effect`)')
         ench = None
         for r in paged('/api/v1/professions/enchanting', a.key, raw_dir, cap):
-            if not r.get('makes'):
+            if is_recipe(r) and not r.get('makes'):
                 ench = r; break
         print(json.dumps({k: ench[k] for k in ench if k != 'learnedFrom'}, indent=1)[:2500] if ench else 'none found')
         print('\n== /disenchant summary')
@@ -354,8 +372,11 @@ def main():
 
     recipes = {}
     for prof in PROFESSIONS:
-        rows = list(paged(f'/api/v1/professions/{prof}', a.key, raw_dir, cap))
+        rows = [r for r in paged(f'/api/v1/professions/{prof}', a.key, raw_dir, cap) if is_recipe(r)]
         print(f'{prof}: {len(rows)} recipes')
+        if len(rows) < 50:
+            raise SystemExit(f'only {len(rows)} {prof} recipes came back; the list shape changed (data keys: '
+                             'see data/raw) — stopping before any item is fetched')
         recipes[prof] = [map_recipe(r, prof) for r in rows]
         if rows and not build:
             # no /meta: the list response carries the build and client too

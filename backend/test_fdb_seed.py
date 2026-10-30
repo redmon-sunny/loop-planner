@@ -82,6 +82,24 @@ def synthetic_recipes(idmap_path=None):
     return fs.build_output(recipes, items, copy.deepcopy(DE_ROWS), copy.deepcopy(idmap), '1.60.1.70658', 'dev-0077')
 
 
+LIST_BODY = {"data": {"profession": {"id": 2435, "name": "Tailoring"},
+                      "ranks": [{"rank": "Apprentice", "maxSkill": 75, "spellId": 1240946}, {"rank": "Journeyman", "maxSkill": 150, "spellId": 1240947}],
+                      "categories": [{"id": 2576, "name": "Reagents"}],
+                      "recipes": [RECIPE_BOLT, RECIPE_CAPE]},
+             "meta": {"build": "1.60.1.70658", "total": 2, "limit": 100, "offset": 0, "next": None, "client": "dev-0077"}}
+
+
+class ListShapeTest(unittest.TestCase):
+    def test_list_of_prefers_recipes_over_sibling_lists(self):
+        rows = fs.list_of(LIST_BODY)
+        self.assertEqual([r['name'] for r in rows], ['Bolt of Linen Cloth', 'Woolen Cape'], 'ranks/categories must never be taken for recipes')
+        self.assertEqual(fs.list_of({'data': [1, 2]}), [1, 2]); self.assertEqual(fs.list_of({'data': {'nope': 1}}), [])
+
+    def test_is_recipe_drops_rank_rows(self):
+        self.assertTrue(fs.is_recipe(RECIPE_BOLT)); self.assertTrue(fs.is_recipe(RECIPE_ENCH))
+        self.assertFalse(fs.is_recipe({'rank': 'Apprentice', 'maxSkill': 75, 'spellId': 1240946}))
+
+
 class MapRecipeTest(unittest.TestCase):
     def test_bolt(self):
         r = fs.map_recipe(RECIPE_BOLT, 'tailoring')
