@@ -43,6 +43,7 @@ if your uid isn't 1000, `LP_UID=$(id -u)` and `LP_GID=$(id -g)` in `.env`. Then 
 | Thing | Order |
 |---|---|
 | Recipes, skill colours, mats | `recipes.json` (replaces the seed tables once per ForeverDB build) > seed. Recipes you add with `custom: true` in the Data tab survive a rebuild. `sell` prices you typed are kept by recipe id. |
+| Disenchant yields | your Observed log for a bracket+slot+quality with ≥ 20 samples > `recipes.json`'s table (Forever-observed rows, else Classic) > the page's Classic seed |
 | Prices | a price you typed by hand beats `prices.json` until a scan **newer** than your edit arrives; then the scan wins |
 | Observed disenchants | union of the page's log and `observed.json`, deduped on (lvl, slot, quality, mat, qty, ts) |
 
@@ -109,17 +110,34 @@ python backend/sv_parse.py --auctionator "<path>/Auctionator.lua" --observed-csv
 Windows scheduled task or a post-logout hook: run the command above, then copy `data/*.json` to the homelab share.
 Or run it on the homelab against a synced copy of the `WTF` folder.
 
-### Recipes — `fdb_seed.py`
+### Recipes and disenchant yields — `fdb_seed.py` (v0.5, mapped against build 1.60.1.70658)
 
-1. Log in at https://foreverdb.net with Battle.net, request API access (state the use case, agree to credit the site), create a key.
-2. `export FDB_KEY=…` then `python backend/fdb_seed.py --inspect` — prints the first recipe and item objects.
-3. If any field in `map_recipe()` / `map_item()` comes back empty, fix the `pick()` paths to match what you saw. The API docs list
-   what is covered (skill colours, reagents, product, learnedFrom; item quality, required level, sell price) but not the exact key names.
-4. `python backend/fdb_seed.py --out data` — writes `data/recipes.json`, caches every response in `data/raw/`, and updates
-   `backend/mat_item_ids.json` with real item ids. Unmapped recipes are listed under `unmapped` in the file rather than dropped.
+```
+set -a; . ./.env; set +a                        # FDB_KEY lives in .env on the homelab
+python3 backend/fdb_seed.py --inspect           # ~4 calls: prints the objects whose shape is still unconfirmed
+python3 backend/fdb_seed.py                     # full seed; refuses past --max-calls 500 unless --yes
+python3 backend/fdb_seed.py --greens            # also data/greens.json: every uncommon item by required level
+```
 
-Rate limit 60/min, 10k/day; the script sleeps between calls and honours `Retry-After`. Re-run per game build.
-Attribution: the page footer shows "Data from ForeverDB.net" whenever `recipes.json` is loaded — keep it.
+- Writes `data/recipes.json`: every Tailoring and Enchanting recipe (471 + 261 on the beta build), the mats they use,
+  the disenchant yield table, build, client id and attribution. Every response is cached under `data/raw/` and never
+  re-fetched, so a second run after a stop costs nothing.
+- Recipes carry `spellId`, skill colours, `inputs` resolved to planner mat ids **by name** (Forever renumbers new items:
+  Mote of Magic is 247786, not a Classic id), `output` with quality, **item level**, required level, slot and bind,
+  `learnedFrom` (auto / trainer / recipe item, learn-at skill), and `newInForever` / `changedFromClassic` /
+  `speculation` flags straight from ForeverDB. Same-name recipes get `_<spellId>` suffixes. Intermediates (bolts) keep
+  the seed ids (`bolt_linen`) because the page prices them through their recipe.
+- **The disenchant table is keyed by item level**, as the game rolls it; the page moved to item level everywhere in v0.5
+  (recipes know their output's item level; the tap logger and Shuffle lookup ask for item level). Rows are
+  `{quality, kind, min, max, source, n, results[{mat, chance, min, max}]}`; `source` is `forever` when ForeverDB has
+  player-observed results for that row, else `classic` (flagged (C) in the page). On the Oct 30 pull every row was
+  Classic — your Observed log is the override until uploads arrive.
+- Vendor buy prices for reagents: the script tries `soldBy` / `vendors` on `/items/{id}` and reports how many mats got
+  one; zero means the field lives elsewhere and the planner keeps its seed vendor prices (flagged).
+- Quota: one full seed is roughly 2 list pages per profession + one `/items/{id}` per distinct product and reagent
+  (~600) + `/disenchant` ≈ 650 calls, ~12 minutes at the 60/min limit. The script estimates before it starts and stops
+  at `--max-calls` (500) unless `--yes` — the brief says ask before spending more than that.
+- `backend/test_fdb_seed.py` tests the mappers offline against objects pasted from a real `--inspect` run.
 
 ## What the page does with it
 

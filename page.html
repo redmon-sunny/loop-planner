@@ -177,7 +177,7 @@ footer{color:var(--muted);font-size:12px;margin-top:16px}
   <div class="s-card">
     <h2>Log a disenchant <small>one tap per result</small></h2>
     <div class="row">
-      <span class="stepper"><button id="lvlDown">−</button><input type="number" id="sLvl" min="1" max="60" value="16"><button id="lvlUp">+</button></span>
+      <span class="stepper" title="Item level of the thing you disenchanted (not required level)"><span class="dim">ilvl</span> <button id="lvlDown">−</button><input type="number" id="sLvl" min="1" max="60" value="22"><button id="lvlUp">+</button></span>
       <span class="choices" id="sSlot"><button data-v="armor" aria-pressed="true">Armor</button><button data-v="weapon" aria-pressed="false">Weapon</button></span>
       <span class="choices" id="sQual"><button data-v="green" aria-pressed="true">Green</button><button data-v="blue" aria-pressed="false">Blue</button></span>
     </div>
@@ -244,9 +244,9 @@ footer{color:var(--muted);font-size:12px;margin-top:16px}
 
 <section class="tab" id="tab-shuffle">
   <h2>AH shuffle ceiling</h2>
-  <p class="hint">Expected disenchant value of a green by required level and slot at current prices. Max buyout = EV × ceiling.</p>
+  <p class="hint">Expected disenchant value by <b>item level</b> (what the game rolls on), slot and quality at current prices. Max buyout = EV × ceiling. Greens are usually item level ≈ required level + 4–6; a tooltip addon shows the exact number.</p>
   <div class="row">
-    <label>Required level <input type="number" id="shLevel" min="1" max="60" value="18"></label>
+    <label>Item level <input type="number" id="shLevel" min="1" max="60" value="22"></label>
     <label>Slot <select id="shSlot"><option value="armor">armor</option><option value="weapon">weapon</option></select></label>
     <label>Quality <select id="shQuality"><option value="green">green</option><option value="blue">blue</option></select></label>
     <label>Ceiling % <input type="number" id="shCeil" min="10" max="100" value="70"></label>
@@ -282,7 +282,7 @@ footer{color:var(--muted);font-size:12px;margin-top:16px}
 
 <section class="tab" id="tab-data">
   <h2>Data</h2>
-  <p class="hint">Recipes, the DE yield table and mats are plain JSON. Edit, then Apply. Export saves everything (characters, prices, log, packs) to the clipboard as JSON; paste into Import to restore. Reset returns to the seed tables.</p>
+  <p class="hint">Recipes, the DE yield table (one row per item-level bracket × slot × quality, with per-mat chance and min–max; <code>source</code> is classic, forever or observed) and mats are plain JSON. Edit, then Apply. Export saves everything (characters, prices, log, packs) to the clipboard as JSON; paste into Import to restore. Reset returns to the seed tables.</p>
   <div class="row">
     <button class="primary" id="dataApply">Apply JSON</button>
     <button id="dataExport">Copy export JSON</button>
@@ -326,20 +326,20 @@ mats: [
 ],
 tailoring: [
  {id:'bolt_linen',name:'Bolt of Linen Cloth',skill:[1,25,37,50],inputs:[{mat:'linen',qty:2}],output:{quality:'white',reqLevel:0,slot:'armor'},intermediate:true,sell:0},
- {id:'linen_belt',name:'Linen Belt',skill:[1,35,45,55],inputs:[{mat:'bolt_linen',qty:1},{mat:'coarse_thread',qty:1}],output:{quality:'white',reqLevel:3,slot:'armor'},vendor:30,sell:0},
- {id:'brown_linen_robe',name:'Brown Linen Robe',skill:[15,40,50,60],inputs:[{mat:'bolt_linen',qty:3},{mat:'coarse_thread',qty:1}],output:{quality:'green',reqLevel:5,slot:'armor'},sell:0,flag:'(C) green?'},
+ {id:'linen_belt',name:'Linen Belt',skill:[1,35,45,55],inputs:[{mat:'bolt_linen',qty:1},{mat:'coarse_thread',qty:1}],output:{quality:'white',reqLevel:3,itemLevel:8,slot:'armor'},vendor:30,sell:0},
+ {id:'brown_linen_robe',name:'Brown Linen Robe',skill:[15,40,50,60],inputs:[{mat:'bolt_linen',qty:3},{mat:'coarse_thread',qty:1}],output:{quality:'green',reqLevel:5,itemLevel:10,slot:'armor'},sell:0,flag:'(C) green?'},
  {id:'linen_bag',name:'Linen Bag',skill:[45,70,80,90],inputs:[{mat:'bolt_linen',qty:3},{mat:'coarse_thread',qty:3}],output:{quality:'white',reqLevel:0,slot:'armor'},sell:0},
- {id:'arcanist_sash',name:"Novice Arcanist's Sash",skill:[50,70,80,90],inputs:[{mat:'bolt_linen',qty:8},{mat:'fine_thread',qty:2},{mat:'minor_mana_pot',qty:2}],output:{quality:'blue',reqLevel:10,slot:'armor',bop:true},sell:0,flag:'new; bind type unverified'},
+ {id:'arcanist_sash',name:"Novice Arcanist's Sash",skill:[50,70,80,90],inputs:[{mat:'bolt_linen',qty:8},{mat:'fine_thread',qty:2},{mat:'minor_mana_pot',qty:2}],output:{quality:'blue',reqLevel:10,itemLevel:15,slot:'armor',bop:true},sell:0,flag:'new; bind type unverified'},
  {id:'bolt_wool',name:'Bolt of Woolen Cloth',skill:[75,90,95,100],inputs:[{mat:'wool',qty:3}],output:{quality:'white',reqLevel:0,slot:'armor'},intermediate:true,sell:0},
- {id:'woolen_cape',name:'Woolen Cape',skill:[80,95,105,115],inputs:[{mat:'bolt_wool',qty:1},{mat:'fine_thread',qty:1}],output:{quality:'green',reqLevel:16,slot:'armor'},sell:0,flag:'(C) green?'},
+ {id:'woolen_cape',name:'Woolen Cape',skill:[80,95,105,115],inputs:[{mat:'bolt_wool',qty:1},{mat:'fine_thread',qty:1}],output:{quality:'green',reqLevel:16,itemLevel:21,slot:'armor'},sell:0,flag:'(C) green?'},
  {id:'woolen_bag',name:'Woolen Bag',skill:[90,110,120,130],inputs:[{mat:'bolt_wool',qty:3},{mat:'fine_thread',qty:1}],output:{quality:'white',reqLevel:0,slot:'armor'},sell:0},
- {id:'ds_woolen_shoulders',name:'Double-stitched Woolen Shoulders',skill:[95,110,120,130],inputs:[{mat:'bolt_wool',qty:3},{mat:'fine_thread',qty:1}],output:{quality:'green',reqLevel:17,slot:'armor'},sell:0,flag:'(C) green?'},
- {id:'pearl_cloak',name:'Pearl-clasped Cloak',skill:[105,120,130,140],inputs:[{mat:'bolt_wool',qty:3},{mat:'fine_thread',qty:2},{mat:'small_lustrous_pearl',qty:1}],output:{quality:'green',reqLevel:13,slot:'armor'},sell:0},
- {id:'gloves_meditation',name:'Gloves of Meditation',skill:[125,140,150,160],inputs:[{mat:'bolt_wool',qty:4},{mat:'elixir_wisdom',qty:1},{mat:'fine_thread',qty:1}],output:{quality:'green',reqLevel:21,slot:'armor'},sell:0},
+ {id:'ds_woolen_shoulders',name:'Double-stitched Woolen Shoulders',skill:[95,110,120,130],inputs:[{mat:'bolt_wool',qty:3},{mat:'fine_thread',qty:1}],output:{quality:'green',reqLevel:17,itemLevel:22,slot:'armor'},sell:0,flag:'(C) green?'},
+ {id:'pearl_cloak',name:'Pearl-clasped Cloak',skill:[105,120,130,140],inputs:[{mat:'bolt_wool',qty:3},{mat:'fine_thread',qty:2},{mat:'small_lustrous_pearl',qty:1}],output:{quality:'green',reqLevel:13,itemLevel:18,slot:'armor'},sell:0},
+ {id:'gloves_meditation',name:'Gloves of Meditation',skill:[125,140,150,160],inputs:[{mat:'bolt_wool',qty:4},{mat:'elixir_wisdom',qty:1},{mat:'fine_thread',qty:1}],output:{quality:'green',reqLevel:21,itemLevel:26,slot:'armor'},sell:0},
  {id:'bolt_silk',name:'Bolt of Silk Cloth',skill:[125,135,140,145],inputs:[{mat:'silk',qty:4}],output:{quality:'white',reqLevel:0,slot:'armor'},intermediate:true,sell:0},
  {id:'small_silk_pack',name:'Small Silk Pack',skill:[150,165,175,185],inputs:[{mat:'bolt_silk',qty:3},{mat:'heavy_leather',qty:2},{mat:'fine_thread',qty:3}],output:{quality:'white',reqLevel:0,slot:'armor'},sell:0},
- {id:'crimson_silk_vest',name:'Crimson Silk Vest',skill:[150,165,175,185],inputs:[{mat:'bolt_silk',qty:4},{mat:'red_dye',qty:2},{mat:'fine_thread',qty:2}],output:{quality:'green',reqLevel:25,slot:'armor'},sell:0},
- {id:'crimson_silk_pants',name:'Crimson Silk Pantaloons',skill:[170,180,185,190],inputs:[{mat:'bolt_silk',qty:4},{mat:'red_dye',qty:2},{mat:'silken_thread',qty:1}],output:{quality:'green',reqLevel:27,slot:'armor'},sell:0},
+ {id:'crimson_silk_vest',name:'Crimson Silk Vest',skill:[150,165,175,185],inputs:[{mat:'bolt_silk',qty:4},{mat:'red_dye',qty:2},{mat:'fine_thread',qty:2}],output:{quality:'green',reqLevel:25,itemLevel:30,slot:'armor'},sell:0},
+ {id:'crimson_silk_pants',name:'Crimson Silk Pantaloons',skill:[170,180,185,190],inputs:[{mat:'bolt_silk',qty:4},{mat:'red_dye',qty:2},{mat:'silken_thread',qty:1}],output:{quality:'green',reqLevel:27,itemLevel:32,slot:'armor'},sell:0},
 ],
 enchanting: [
  {id:'runed_copper_rod',name:'Runed Copper Rod',skill:[1,5,7,10],inputs:[{mat:'copper_rod',qty:1},{mat:'mote',qty:1}],consumesRod:true,produces:null,sell:0},
@@ -362,18 +362,15 @@ enchanting: [
  {id:'bracer_strength',name:'Enchant Bracer - Strength',skill:[185,205,215,225],inputs:[{mat:'vision_dust',qty:1}],produces:null,sell:0},
  {id:'lesser_wizard_oil',name:'Lesser Wizard Oil',skill:[200,215,225,235],inputs:[{mat:'vision_dust',qty:1},{mat:'leaded_vial',qty:1}],produces:'item',sell:0,flag:'Stranglethorn Seed omitted'},
 ],
-de: [
- {min:1,max:10,dust:'strange_dust',dustAvg:1.5,ess:'lme',essAvg:1.5,shard:null,armor:{dust:.8,ess:.2,shard:0},weapon:{dust:.2,ess:.8,shard:0}},
- {min:11,max:15,dust:'strange_dust',dustAvg:2.5,ess:'gme',essAvg:1.5,shard:'sgs',armor:{dust:.75,ess:.2,shard:.05},weapon:{dust:.2,ess:.75,shard:.05}},
- {min:16,max:20,dust:'strange_dust',dustAvg:5,ess:'lae',essAvg:1.5,shard:'sgs',armor:{dust:.75,ess:.2,shard:.05},weapon:{dust:.2,ess:.75,shard:.05}},
- {min:21,max:25,dust:'soul_dust',dustAvg:1.5,ess:'gae',essAvg:1.5,shard:'lgs',armor:{dust:.75,ess:.2,shard:.05},weapon:{dust:.2,ess:.75,shard:.05}},
- {min:26,max:30,dust:'soul_dust',dustAvg:3.5,ess:'lmye',essAvg:1.5,shard:'sglow',armor:{dust:.75,ess:.2,shard:.05},weapon:{dust:.2,ess:.75,shard:.05}},
- {min:31,max:35,dust:'vision_dust',dustAvg:1.5,ess:'gmye',essAvg:1.5,shard:'lglow',armor:{dust:.75,ess:.2,shard:.05},weapon:{dust:.2,ess:.75,shard:.05}},
- {min:36,max:40,dust:'vision_dust',dustAvg:3.5,ess:'lne',essAvg:1.5,shard:'srad',armor:{dust:.75,ess:.2,shard:.05},weapon:{dust:.2,ess:.75,shard:.05}},
- {min:41,max:45,dust:'dream_dust',dustAvg:1.5,ess:'gne',essAvg:1.5,shard:'lrad',armor:{dust:.75,ess:.2,shard:.05},weapon:{dust:.2,ess:.75,shard:.05}},
- {min:46,max:50,dust:'dream_dust',dustAvg:3.5,ess:'lee',essAvg:1.5,shard:'sbril',armor:{dust:.75,ess:.2,shard:.05},weapon:{dust:.2,ess:.75,shard:.05}},
- {min:51,max:60,dust:'illusion_dust',dustAvg:2.5,ess:'gee',essAvg:1.5,shard:'lbril',armor:{dust:.75,ess:.2,shard:.05},weapon:{dust:.2,ess:.75,shard:.05}},
-],
+// Disenchant yields by ITEM level (the game rolls on item level, not required level). Green armor rows are the Classic
+// table as ForeverDB publishes it (CMaNGOS); weapon and blue rows are the usual Classic split, flagged (C). recipes.json
+// replaces all of this once per build, and your Observed log overrides any bracket+slot with enough samples.
+de: (()=>{ const B=[[1,15,'strange_dust',1,2,'lme',1,2,null],[16,20,'strange_dust',2,3,'gme',1,2,'sgs'],[21,25,'strange_dust',4,6,'lae',1,2,'sgs'],[26,30,'soul_dust',1,2,'gae',1,2,'lgs'],[31,35,'soul_dust',2,5,'lmye',1,2,'sglow'],[36,40,'vision_dust',1,2,'gmye',1,2,'lglow'],[41,45,'vision_dust',2,5,'lne',1,2,'srad'],[46,50,'dream_dust',1,2,'gne',1,2,'lrad'],[51,55,'dream_dust',2,5,'lee',1,2,'sbril'],[56,60,'illusion_dust',1,2,'gee',1,2,'lbril']];
+  const rows=[]; for(const [min,max,d,d1,d2,e,e1,e2,sh] of B){ const dc=sh?.75:.8, ec=min===21?.15:.2, sc=sh?(min===21?.10:.05):0;
+    rows.push({id:`q2-armor-${min}`,quality:'green',kind:'armor',min,max,source:'classic',n:0,results:[{mat:d,chance:dc,min:d1,max:d2},{mat:e,chance:ec,min:e1,max:e2},...(sh?[{mat:sh,chance:sc,min:1,max:1}]:[])]});
+    rows.push({id:`q2-weapon-${min}`,quality:'green',kind:'weapon',min,max,source:'classic',n:0,flag:'(C) weapon split assumed',results:[{mat:e,chance:sh?.75:.8,min:e1,max:e2},{mat:d,chance:.2,min:d1,max:d2},...(sh?[{mat:sh,chance:.05,min:1,max:1}]:[])]});
+    if(sh) for(const kind of ['armor','weapon']) rows.push({id:`q3-${kind}-${min}`,quality:'blue',kind,min,max,source:'classic',n:0,flag:'(C)',results:[{mat:sh,chance:1,min:1,max:1}]}); }
+  return rows; })(),
 // Example prices so the page shows something real on first open. Marked "example" until a scan or a typed price replaces them.
 examplePrices: {linen:300,wool:800,silk:1200,strange_dust:600,lme:1800,gme:4000,lae:2000,gae:3500,soul_dust:1200,lmye:4000,vision_dust:2000,sgs:3000,lgs:4500,small_lustrous_pearl:2000,elixir_wisdom:1500,heavy_leather:1000,maple_seed:500,shadowgem:2500},
 };
@@ -410,7 +407,7 @@ function freshState(){
     ui:{theme:'auto',tailValueMode:'de',obsMin:20,planTailTo:150,planEnchTo:150,mode:null,pack:'de'} };
 }
 // normalize: fill any key a stored document lacks (older versions, hand edits, a fresh server)
-function normalize(s){ const f=freshState(); for(const k of Object.keys(f)) if(s[k]===undefined) s[k]=f[k]; for(const k of Object.keys(f.ui)) if(s.ui[k]===undefined) s.ui[k]=f.ui[k]; for(const k of Object.keys(PACKS_DEFAULT)) if(!s.packs[k]) s.packs[k]=clone(PACKS_DEFAULT[k]); if(!s.chars[s.activeChar]) s.activeChar=Object.keys(s.chars)[0]; if(!Array.isArray(s.observed)) s.observed=[]; return s; }
+function normalize(s){ const f=freshState(); for(const k of Object.keys(f)) if(s[k]===undefined) s[k]=f[k]; for(const k of Object.keys(f.ui)) if(s.ui[k]===undefined) s.ui[k]=f.ui[k]; for(const k of Object.keys(PACKS_DEFAULT)) if(!s.packs[k]) s.packs[k]=clone(PACKS_DEFAULT[k]); if(!s.chars[s.activeChar]) s.activeChar=Object.keys(s.chars)[0]; if(!Array.isArray(s.observed)) s.observed=[]; if(!Array.isArray(s.de)||!s.de.length||s.de[0].results===undefined){ s.de=clone(SEED.de); delete s.ui.loadedDeBuild; } return s; }
 function loadLocal(){
   try{
     let raw=localStorage.getItem(KEY);
@@ -532,27 +529,31 @@ function matById(id){ return S.mats.find(m=>m.id===id); }
 function matName(id){ const m=matById(id); if(m) return m.name; const r=S.tailoring.find(t=>t.id===id); return r?r.name:id; }
 function skillChance(skill,sk){ const [o,y,g,gr]=sk; if(skill<o) return 0; if(skill<y) return 1; if(skill>=gr) return 0; return Math.max(0,(gr-skill)/(gr-y)); }
 function skillColor(skill,sk){ const [o,y,g,gr]=sk; if(skill<o) return 'locked'; if(skill<y) return 'orange'; if(skill<g) return 'yellow'; if(skill<gr) return 'green'; return 'gray'; }
-function bracketFor(lvl){ return S.de.find(b=>lvl>=b.min&&lvl<=b.max)||null; }
+function deRow(lvl,kind,quality){ return S.de.find(b=>b.quality===quality&&b.kind===kind&&lvl>=b.min&&lvl<=b.max)||null; }
+function bracketFor(lvl){ const b=S.de.find(x=>lvl>=x.min&&lvl<=x.max); return b?{min:b.min,max:b.max,key:b.min+'-'+b.max}:null; }
+function deBrackets(){ const seen=new Map(); for(const b of S.de){ const k=b.min+'-'+b.max; if(!seen.has(k)) seen.set(k,{min:b.min,max:b.max,key:k}); } return [...seen.values()].sort((a,b)=>a.min-b.min); }
+function outLevel(o){ return o.itemLevel||(o.reqLevel?o.reqLevel+5:1); }   // item level; the +5 fallback is a Classic rule of thumb for seed rows
+function rowText(row){ return row?row.results.filter(r=>r.chance>0).map(r=>`${matName(r.mat)} ${Math.round(r.chance*100)}%${r.max>1?` ×${r.min}–${r.max}`:''}`).join(' · '):'—'; }
 function ahPrice(id){ const m=matById(id); if(m&&m.vendor!=null) return m.vendor; const p=S.prices[id]; return p?p:0; }
 function isUnpriced(id){ const m=matById(id); if(m&&m.vendor!=null) return false; return !(S.prices[id]>0); }
 function inputCost(id,depth=0){ const m=matById(id); if(m) return ahPrice(id); const r=S.tailoring.find(t=>t.id===id); if(!r||depth>3) return 0; const crafted=r.inputs.reduce((a,i)=>a+inputCost(i.mat,depth+1)*i.qty,0); const ah=S.prices[id]||0; return ah>0?Math.min(ah,crafted):crafted; }
 function recipeMatCost(r){ return r.inputs.reduce((a,i)=>a+inputCost(i.mat)*i.qty,0); }
 function recipeUnpriced(r){ const out=[]; for(const i of r.inputs){ const m=matById(i.mat); if(m){ if(isUnpriced(i.mat)) out.push(i.mat); } else { const sub=S.tailoring.find(t=>t.id===i.mat); if(sub) for(const j of sub.inputs) if(isUnpriced(j.mat)) out.push(j.mat); } } return [...new Set(out)]; }
-function observedStats(){ const st={}; for(const o of S.observed){ const b=bracketFor(o.lvl); if(!b) continue; const k=S.de.indexOf(b)+'|'+o.slot+'|'+o.quality; st[k]=st[k]||{n:0,mats:{}}; st[k].n++; st[k].mats[o.mat]=st[k].mats[o.mat]||{count:0,qty:0}; st[k].mats[o.mat].count++; st[k].mats[o.mat].qty+=o.qty; } return st; }
+function observedStats(){ const st={}; for(const o of S.observed){ const b=bracketFor(o.lvl); if(!b) continue; const k=b.key+'|'+o.slot+'|'+o.quality; st[k]=st[k]||{n:0,mats:{}}; st[k].n++; st[k].mats[o.mat]=st[k].mats[o.mat]||{count:0,qty:0}; st[k].mats[o.mat].count++; st[k].mats[o.mat].qty+=o.qty; } return st; }
 function expectedDE(lvl,slot,quality){
-  const b=bracketFor(lvl); if(!b) return {mats:{},source:'none',n:0};
-  const st=observedStats(); const k=S.de.indexOf(b)+'|'+slot+'|'+quality; const min=S.ui.obsMin||20;
-  if(st[k]&&st[k].n>=min){ const mats={}; for(const [id,v] of Object.entries(st[k].mats)) mats[id]=(v.count/st[k].n)*(v.qty/v.count); return {mats,source:'observed',n:st[k].n}; }
-  const mats={}; if(quality==='blue'){ if(b.shard) mats[b.shard]=1; return {mats,source:'seed',n:st[k]?st[k].n:0}; }
-  const p=b[slot]||b.armor; if(p.dust>0) mats[b.dust]=(mats[b.dust]||0)+p.dust*b.dustAvg; if(p.ess>0) mats[b.ess]=(mats[b.ess]||0)+p.ess*b.essAvg; if(p.shard>0&&b.shard) mats[b.shard]=(mats[b.shard]||0)+p.shard;
-  return {mats,source:'seed',n:st[k]?st[k].n:0};
+  const b=bracketFor(lvl); if(!b) return {mats:{},source:'none',n:0,row:null};
+  const row=deRow(lvl,slot,quality)||deRow(lvl,'armor',quality);
+  const st=observedStats(); const k=b.key+'|'+slot+'|'+quality; const min=S.ui.obsMin||20;
+  if(st[k]&&st[k].n>=min){ const mats={}; for(const [id,v] of Object.entries(st[k].mats)) mats[id]=(v.count/st[k].n)*(v.qty/v.count); return {mats,source:'observed',n:st[k].n,row}; }
+  const mats={}; if(row) for(const r of row.results){ if(!r.mat||!(r.chance>0)) continue; mats[r.mat]=(mats[r.mat]||0)+r.chance*((r.min+r.max)/2); }
+  return {mats,source:row?row.source:'none',n:st[k]?st[k].n:0,row};
 }
 function deValue(mats){ return Object.entries(mats).reduce((a,[id,q])=>a+ahPrice(id)*q,0); }
-function effectivePrices(){ const eff={}; for(const r of S.tailoring){ if(r.output.quality==='white'||r.output.bop) continue; const de=expectedDE(r.output.reqLevel,r.output.slot,r.output.quality); const cost=recipeMatCost(r); for(const [id,q] of Object.entries(de.mats)){ if(q<=0) continue; const by=Object.entries(de.mats).filter(([i])=>i!==id).reduce((a,[i,qq])=>a+ahPrice(i)*qq,0); const price=Math.max(0,(cost-by)/q); if(!eff[id]||price<eff[id].price) eff[id]={price,via:r.name,qty:q,cost}; } } return eff; }
+function effectivePrices(){ const eff={}; for(const r of S.tailoring){ if(r.output.quality==='white'||r.output.bop) continue; const de=expectedDE(outLevel(r.output),r.output.slot,r.output.quality); const cost=recipeMatCost(r); for(const [id,q] of Object.entries(de.mats)){ if(q<=0) continue; const by=Object.entries(de.mats).filter(([i])=>i!==id).reduce((a,[i,qq])=>a+ahPrice(i)*qq,0); const price=Math.max(0,(cost-by)/q); if(!eff[id]||price<eff[id].price) eff[id]={price,via:r.name,qty:q,cost}; } } return eff; }
 function matPriceForEnch(id,eff,useCrafted){ const ah=ahPrice(id); const m=matById(id); if(!useCrafted||!m||!m.de||!eff[id]) return {price:ah,src:(m&&m.vendor!=null)?'vendor':'AH'}; if(ah>0&&ah<=eff[id].price) return {price:ah,src:'AH'}; if(ah===0&&eff[id].price===0) return {price:0,src:'unpriced'}; return {price:eff[id].price,src:'craft: '+eff[id].via}; }
 function tailRow(r,skill,mode){
   const cost=recipeMatCost(r); const ch=skillChance(skill,r.skill); const col=skillColor(skill,r.skill);
-  const de=r.output.quality==='white'?{mats:{},source:'none',n:0}:expectedDE(r.output.reqLevel,r.output.slot,r.output.quality); const dev=deValue(de.mats); const sell=r.sell||0;
+  const de=r.output.quality==='white'?{mats:{},source:'none',n:0}:expectedDE(outLevel(r.output),r.output.slot,r.output.quality); const dev=deValue(de.mats); const sell=r.sell||0;
   let value=0,vlabel='—'; if(r.output.quality!=='white'){ if(mode==='de'){value=dev;vlabel='DE';} else if(mode==='sell'){value=sell;vlabel='sell';} else if(sell>dev){value=sell;vlabel='sell';} else {value=dev;vlabel='DE';} } else if(sell>0){ value=sell; vlabel='sell'; }
   return {cost,ch,col,dev,sell,value,vlabel,net:value-cost,cpp:ch>0?cost/ch:Infinity,netcpp:ch>0?(cost-value)/ch:Infinity,feeds:Object.entries(de.mats).map(([id,q])=>`${fmtQty(q)} ${matName(id)}`).join(', ')||'<span class="muted">—</span>',unp:recipeUnpriced(r),de};
 }
@@ -588,12 +589,12 @@ function solveEnchanting(from,to,bank){
 function placeholders(){
   const be=bestEnchants(); const e1=be[0],e2=be[1]; const fl=nextFloor();
   const ceil=(+($('shCeil')&&$('shCeil').value)||70)/100;
-  const ceilings=S.de.slice(0,5).map(b=>`${b.min}-${b.max} A ${fmtShort(deValue(expectedDE(b.min,'armor','green').mats)*ceil)} W ${fmtShort(deValue(expectedDE(b.min,'weapon','green').mats)*ceil)}`).join(' | ');
+  const ceilings=deBrackets().slice(0,5).map(b=>`${b.min}-${b.max} A ${fmtShort(deValue(expectedDE(b.min,'armor','green').mats)*ceil)} W ${fmtShort(deValue(expectedDE(b.min,'weapon','green').mats)*ceil)}`).join(' | ');
   let need='',surplus=''; if(fl){ const E=solveEnchanting(cur().ench,fl.skill,{}); need=Object.entries(E.need).filter(([,v])=>v>=.5).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([k,v])=>`${Math.ceil(v)} ${matName(k)}`).join(', ')||'nothing'; }
   const T=solveTailoring(cur().tail,(nextGate()||{skill:cur().tail+25}).skill,'net',true); surplus=Object.entries(T.bank).filter(([,v])=>v>=1).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([k,v])=>`${Math.floor(v)} ${matName(k)}`).join(', ')||'nothing yet';
   const cut=(s,n)=>s.length>n?s.slice(0,n-1)+'…':s;
   return {ENCH1:e1?e1.r.name:'Enchant Bracer - Minor Stamina',SLOT1:e1?e1.slot:9,ENCH1_CPP:e1?fmtShort(e1.x.cpp):'?',ENCH2:e2?e2.r.name:'Enchant Chest - Minor Absorption',SLOT2:e2?e2.slot:5,ENCH2_CPP:e2?fmtShort(e2.x.cpp):'?',
-    FLOOR:fl?`Enchanting ${fl.skill}`:'cap',CEILINGS:cut('DE max buy @'+Math.round(ceil*100)+'%: '+ceilings,230),NEED:cut(`To ${fl?fl.skill:'cap'}: `+need,230),SURPLUS:cut('Tailoring to next gate makes: '+surplus,230)};
+    FLOOR:fl?`Enchanting ${fl.skill}`:'cap',CEILINGS:cut('DE max buy @'+Math.round(ceil*100)+'% by ilvl: '+ceilings,230),NEED:cut(`To ${fl?fl.skill:'cap'}: `+need,230),SURPLUS:cut('Tailoring to next gate makes: '+surplus,230)};
 }
 function fillMacros(packId){ const p=S.packs[packId]; const ph=placeholders(); const sub=s=>String(s).replace(/\{(\w+)\}/g,(m,k)=>ph[k]!==undefined?ph[k]:m); return {pack:p,ph,slots:p.slots.map(sub),labels:p.labels.map(sub)}; }
 function cacheBlock(filled){ return filled.slots.map((body,i)=>`MACRO ${16777217+i} "LP${i+1}" INV_MISC_QUESTIONMARK\n${body}\nEND`).join('\n'); }
@@ -646,10 +647,11 @@ function renderPlan(){
 }
 function renderShuffle(){
   const lvl=+$('shLevel').value||1, slot=$('shSlot').value, q=$('shQuality').value, ceil=(+$('shCeil').value||70)/100; const de=expectedDE(lvl,slot,q); const ev=deValue(de.mats); const b=bracketFor(lvl);
-  $('shuffleOut').innerHTML=b?`<div class="kv"><span>Bracket</span><b>${b.min}–${b.max}</b><span>Expected mats</span><b>${Object.entries(de.mats).map(([id,qq])=>fmtQty(qq)+' '+esc(matName(id))).join(', ')||'—'}</b><span>Expected value</span><b>${fmt(ev)}</b><span>Max buyout at ${Math.round(ceil*100)}%</span><b style="font-size:18px">${fmt(ev*ceil)}</b><span>Source</span><b>${de.source}${de.n?` (${de.n} observed)`:''}</b></div>`:'<span class="flag">No bracket covers that level.</span>';
-  const rows=S.de.map(br=>{ const a=expectedDE(br.min,'armor','green'),w=expectedDE(br.min,'weapon','green'),bl=expectedDE(br.min,'armor','blue'); return `<tr><td class="num">${br.min}–${br.max}</td><td>${esc(matName(br.dust))} / ${esc(matName(br.ess))}${br.shard?' / '+esc(matName(br.shard)):''}</td><td class="num">${fmt(deValue(a.mats))}</td><td class="num">${fmt(deValue(a.mats)*ceil)}</td><td class="num">${fmt(deValue(w.mats))}</td><td class="num">${fmt(deValue(w.mats)*ceil)}</td><td class="num">${fmt(deValue(bl.mats))}</td><td>${a.source==='observed'?'<span class="pos">obs</span>':'seed'}</td></tr>`; });
-  $('bracketTable').innerHTML=`<thead><tr><th>Req lvl</th><th>Mats</th><th class="num">Armor EV</th><th class="num">Armor max</th><th class="num">Weapon EV</th><th class="num">Weapon max</th><th class="num">Blue EV</th><th>Src</th></tr></thead><tbody>${rows.join('')}</tbody>`;
+  $('shuffleOut').innerHTML=b?`<div class="kv"><span>Item level</span><b>${b.min}–${b.max} ${slot} ${q}</b><span>Table</span><b style="font-family:var(--body)">${esc(rowText(de.row))}${de.row&&de.row.flag?` <span class="flag">${esc(de.row.flag)}</span>`:''}</b><span>Expected mats</span><b>${Object.entries(de.mats).map(([id,qq])=>fmtQty(qq)+' '+esc(matName(id))).join(', ')||'—'}</b><span>Expected value</span><b>${fmt(ev)}</b><span>Max buyout at ${Math.round(ceil*100)}%</span><b style="font-size:18px">${fmt(ev*ceil)}</b><span>Source</span><b>${srcLabel(de)}</b></div>`:'<span class="flag">No bracket covers that item level.</span>';
+  const rows=deBrackets().map(br=>{ const a=expectedDE(br.min,'armor','green'),w=expectedDE(br.min,'weapon','green'),bl=expectedDE(br.min,'armor','blue'); return `<tr><td class="num">${br.min}–${br.max}</td><td style="font-size:12px">${esc(rowText(a.row))}</td><td class="num">${fmt(deValue(a.mats))}</td><td class="num">${fmt(deValue(a.mats)*ceil)}</td><td class="num">${fmt(deValue(w.mats))}</td><td class="num">${fmt(deValue(w.mats)*ceil)}</td><td class="num">${fmt(deValue(bl.mats))}</td><td>${srcLabel(a)}</td></tr>`; });
+  $('bracketTable').innerHTML=`<thead><tr><th>Item lvl</th><th>Green armor table</th><th class="num">Armor EV</th><th class="num">Armor max</th><th class="num">Weapon EV</th><th class="num">Weapon max</th><th class="num">Blue EV</th><th>Src</th></tr></thead><tbody>${rows.join('')}</tbody>`;
 }
+function srcLabel(de){ if(de.source==='observed') return `<span class="pos">observed (${de.n})</span>`; if(de.source==='forever') return `<span class="pos">Forever (${de.row&&de.row.n?de.row.n+' DEs':'API'})</span>`; if(de.source==='classic') return `Classic <span class="flag">(C)</span>${de.n?` <span class="muted">${de.n} obs</span>`:''}`; return de.source; }
 function renderMacros(){
   const sel=$('mPack'); if(!sel.options.length){ sel.innerHTML=Object.entries(S.packs).map(([k,p])=>`<option value="${k}">${esc(p.name)}</option>`).join(''); sel.value=S.ui.pack||'de'; }
   const id=sel.value; const f=fillMacros(id);
@@ -661,7 +663,7 @@ function renderMacros(){
 }
 function renderObserved(){
   const st=observedStats(); const min=S.ui.obsMin||20;
-  const rows=Object.entries(st).map(([k,v])=>{ const [bi,slot,q]=k.split('|'); const b=S.de[+bi]; const mats=Object.entries(v.mats).map(([id,m])=>`${esc(matName(id))}: ${(100*m.count/v.n).toFixed(0)}% × ${fmtQty(m.qty/m.count)}`).join('<br>'); return `<tr><td class="num">${b.min}–${b.max}</td><td>${slot}</td><td>${q}</td><td class="num">${v.n}</td><td style="font-size:12px">${mats}</td><td>${v.n>=min?'<span class="pos">overrides seed</span>':`<span class="muted">${min-v.n} more</span>`}</td></tr>`; });
+  const rows=Object.entries(st).map(([k,v])=>{ const [bk,slot,q]=k.split('|'); const [bmin,bmax]=bk.split('-'); const b={min:bmin,max:bmax}; const mats=Object.entries(v.mats).map(([id,m])=>`${esc(matName(id))}: ${(100*m.count/v.n).toFixed(0)}% × ${fmtQty(m.qty/m.count)}`).join('<br>'); return `<tr><td class="num">${b.min}–${b.max}</td><td>${slot}</td><td>${q}</td><td class="num">${v.n}</td><td style="font-size:12px">${mats}</td><td>${v.n>=min?'<span class="pos">overrides seed</span>':`<span class="muted">${min-v.n} more</span>`}</td></tr>`; });
   $('obsSummary').innerHTML=`<thead><tr><th>Bracket</th><th>Slot</th><th>Q</th><th class="num">n</th><th>Observed</th><th>Status</th></tr></thead><tbody>${rows.join('')||'<tr><td colspan="6" class="muted">No observations yet.</td></tr>'}</tbody>`;
   $('obsRaw').innerHTML=`<thead><tr><th>#</th><th>Lvl</th><th>Slot</th><th>Q</th><th>Mat</th><th class="num">Qty</th></tr></thead><tbody>${S.observed.slice().reverse().map((o,i)=>`<tr><td class="num">${S.observed.length-i}</td><td class="num">${o.lvl}</td><td>${o.slot}</td><td>${o.quality}</td><td>${esc(matName(o.mat))}</td><td class="num">${o.qty}</td></tr>`).join('')}</tbody>`;
 }
@@ -687,8 +689,8 @@ function renderSession(){
     stop.push(['Enchant now',`<b>${esc(e1.r.name)}</b> on slot ${e1.slot} · ${fmt(e1.x.cpp)}/pt${fl?` · ~${Math.ceil(crafts)} casts to ${fl.skill} = ${esc(mats)} (${fmt(e1.x.cpp*pts)})`:''}`]); }
   else stop.push(['Enchant now','nothing castable on your own gear at this skill']);
   if(t1){ stop.push(['Craft now',`<b>${esc(t1.r.name)}</b> · ${(t1.x.ch*100).toFixed(0)}% skill-up · net ${t1.x.net>=0?'<span class="pos">+'+fmt(t1.x.net)+'</span>':'<span class="neg">'+fmt(t1.x.net)+'</span>'} per craft after disenchant · feeds ${t1.x.feeds}`]); }
-  const ceil=(+$('shCeil').value||70)/100; const brs=S.de.filter(b=>b.min<=30);
-  stop.push(['Buy greens under',brs.map(b=>`<span class="num">${b.min}–${b.max}</span> armor ${fmtShort(deValue(expectedDE(b.min,'armor','green').mats)*ceil)} · weapon ${fmtShort(deValue(expectedDE(b.min,'weapon','green').mats)*ceil)}`).join('<br>')]);
+  const ceil=(+$('shCeil').value||70)/100; const brs=deBrackets().filter(b=>b.min<=30);
+  stop.push(['Buy greens under',brs.map(b=>`<span class="num">ilvl ${b.min}–${b.max}</span> armor ${fmtShort(deValue(expectedDE(b.min,'armor','green').mats)*ceil)} · weapon ${fmtShort(deValue(expectedDE(b.min,'weapon','green').mats)*ceil)}`).join('<br>')]);
   if(fl&&e1){ const casts=Math.ceil((fl.skill-c.ench)/e1.x.ch); const per=e1.r.inputs.reduce((a,i)=>a+i.qty,0); stop.push(['Rule',casts<=15?`Floor is close: press A ${casts} times this stop and ding ${fl.name}.`:`Press A once per ${per} ${e1.r.inputs.map(i=>matName(i.mat)).join('/')} in the bag, then stop. ${casts} casts to the floor is a few stops, not one.`]); }
   else stop.push(['Rule','Walk past the trainer.']);
   $('stopOut').innerHTML=stop.map(([k,v])=>`<span>${k}</span><b style="font-family:var(--body)">${v}</b>`).join('');
@@ -702,9 +704,9 @@ function renderSession(){
   $('checkOut').innerHTML=f.pack.check.map((t,i)=>`<label><input type="checkbox" id="ck_${id}_${i}" data-i="${i}" ${ck[i]?'checked':''}> <span>${esc(t.replace(/\{(\w+)\}/g,(m,k)=>f.ph[k]!==undefined?f.ph[k]:m))}</span></label>`).join('');
   $('checkOut').querySelectorAll('input').forEach(c=>c.addEventListener('change',e=>{ S.checks[id]=S.checks[id]||{}; S.checks[id][e.target.dataset.i]=e.target.checked; save(); }));
   // DE logger
-  const lvl=+$('sLvl').value||1; const b=bracketFor(lvl);
-  $('sBracket').textContent=b?`Bracket ${b.min}–${b.max}: ${matName(b.dust)} / ${matName(b.ess)}${b.shard?' / '+matName(b.shard):''}`:'No bracket covers that level';
-  const opts=b?[b.dust,b.ess,b.shard].filter(Boolean):[]; if(!opts.includes(sessionSel.mat)) sessionSel.mat=opts[0]||null;
+  const lvl=+$('sLvl').value||1; const b=bracketFor(lvl); const row=deRow(lvl,sessionSel.slot,sessionSel.quality)||deRow(lvl,'armor',sessionSel.quality);
+  $('sBracket').textContent=b?`ilvl ${b.min}–${b.max} ${sessionSel.slot} ${sessionSel.quality}: ${rowText(row)}${row&&row.source==='classic'?' · Classic (C)':row&&row.source==='forever'?' · Forever':''}`:'No bracket covers that item level';
+  const opts=row?row.results.map(r=>r.mat).filter(Boolean):[]; if(!opts.includes(sessionSel.mat)) sessionSel.mat=opts[0]||null;
   $('sMats').innerHTML=opts.map(m=>`<button data-mat="${m}" aria-pressed="${sessionSel.mat===m}">${esc(matName(m))}</button>`).join('');
   $('sMats').querySelectorAll('button').forEach(x=>x.addEventListener('click',()=>{ sessionSel.mat=x.dataset.mat; renderSession(); }));
   $('sQty').innerHTML=[1,2,3,4,5,6].map(q=>`<button data-q="${q}">+${q}</button>`).join('');
@@ -717,7 +719,10 @@ async function loadDataFiles(){
   if(!/^https?:/.test(location.protocol)) return;
   const status=[]; let changed=false; const fetchJson=async p=>{ try{ const r=await fetch(p,{cache:'no-store'}); if(!r.ok||r.status===204) return null; return await r.json(); }catch(e){ return null; } };
   const rec=await fetchJson('data/recipes.json');
-  if(rec&&Array.isArray(rec.tailoring)&&rec.build){ if(S.ui.loadedBuild!==rec.build){ const keepSell=list=>{ for(const r of list){ const old=[...S.tailoring,...S.enchanting].find(x=>x.id===r.id); if(old&&old.sell) r.sell=old.sell; } return list; }; const custom=[...S.tailoring,...S.enchanting].filter(r=>r.custom); S.tailoring=keepSell(rec.tailoring).concat(custom.filter(r=>r.output)); S.enchanting=keepSell(rec.enchanting).concat(custom.filter(r=>!r.output)); for(const m of rec.mats||[]){ const old=matById(m.id); if(old){ if(m.itemId) old.itemId=m.itemId; if(old.vendor==null&&m.vendor!=null) old.vendor=m.vendor; } else S.mats.push({id:m.id,name:m.name,vendor:m.vendor??null,de:!!m.de,itemId:m.itemId}); } S.ui.loadedBuild=rec.build; changed=true; } status.push(`recipes: ForeverDB build ${rec.build}`); }
+  if(rec&&Array.isArray(rec.tailoring)&&rec.build){ if(S.ui.loadedBuild!==rec.build){ const keepSell=list=>{ for(const r of list){ const old=[...S.tailoring,...S.enchanting].find(x=>x.id===r.id); if(old&&old.sell) r.sell=old.sell; } return list; }; const custom=[...S.tailoring,...S.enchanting].filter(r=>r.custom); S.tailoring=keepSell(rec.tailoring).concat(custom.filter(r=>r.output)); S.enchanting=keepSell(rec.enchanting).concat(custom.filter(r=>!r.output)); for(const m of rec.mats||[]){ const old=matById(m.id); if(old){ if(m.itemId) old.itemId=m.itemId; if(old.vendor==null&&m.vendor!=null) old.vendor=m.vendor; } else S.mats.push({id:m.id,name:m.name,vendor:m.vendor??null,de:!!m.de,itemId:m.itemId}); } S.ui.loadedBuild=rec.build; changed=true; }
+    if(Array.isArray(rec.de)&&rec.de.length&&S.ui.loadedDeBuild!==rec.build){ S.de=rec.de; S.ui.loadedDeBuild=rec.build; changed=true; }
+    if(rec.client) S.ui.fdbClient=rec.client;
+    const st=rec.stats||{}; status.push(`recipes: ForeverDB build ${rec.build} (${st.tailoring||rec.tailoring.length} tailoring, ${st.enchanting||(rec.enchanting||[]).length} enchanting${st.deRows?`, ${st.deRows} DE rows, ${st.deForeverRows||0} Forever-observed`:''})`); }
   const pr=await fetchJson('data/prices.json');
   if(pr&&pr.prices){ const scanTs=Date.parse(pr.fileModified||pr.generatedAt||0)||0; let n=0; if(S.priceExample){ S.prices={}; S.priceExample=false; changed=true; } for(const [id,v] of Object.entries(pr.prices)){ if(!(v>0)) continue; if((S.priceManual[id]||0)>scanTs) continue; if(S.prices[id]!==v){ S.prices[id]=v; changed=true; } n++; } S.ui.lastScan=scanTs||Date.now(); status.push(`prices: ${n} mats from ${pr.source||'file'} ${pr.realm||''}`); }
   const ob=await fetchJson('data/observed.json');
@@ -727,7 +732,7 @@ async function loadDataFiles(){
   if(!rec&&!pr&&!ob&&!ch){ $('dataStatus').textContent='No data files beside the page yet; running on seed and example prices.'; return; }
   $('dataStatus').textContent=status.join(' · '); if(changed){ save(); syncHeader(); renderAll(); }
 }
-function renderFooter(){ $('footer').innerHTML=(S.ui.loadedBuild?`Recipe and item data: <a href="https://foreverdb.net" target="_blank" rel="noopener">Data from ForeverDB.net</a> (build ${esc(S.ui.loadedBuild)}). `:'Seed recipe data. ')+'Prices and disenchant observations are your own. One cast per keypress is a WoW rule; nothing here automates a cast.'; }
+function renderFooter(){ $('footer').innerHTML=(S.ui.loadedBuild?`Recipe, item and disenchant data: <a href="https://foreverdb.net" target="_blank" rel="noopener">Data from ForeverDB.net</a> (build ${esc(S.ui.loadedBuild)}${S.ui.fdbClient?`, client ${esc(S.ui.fdbClient)}`:''}). `:'Seed recipe data; disenchant table is Classic (C) until a ForeverDB seed lands. ')+'Prices and disenchant observations are your own. One cast per keypress is a WoW rule; nothing here automates a cast.'; }
 
 // ---------- modes, header, wiring ----------
 function renderAll(){ renderPrices(); renderTailoring(); renderEnchanting(); renderShuffle(); renderMacros(); renderObserved(); renderData(); renderSession(); renderFooter(); }

@@ -11,6 +11,8 @@ What it proves (acceptance 1, 4, 7 of the brief):
   - a DE tap is one POST (rev +1, nothing else in the document changes) and shows in the other's ledger
   - when the API goes away the badge says offline, edits stay local, and they are pushed when it returns
   - opened from file:// the page runs on localStorage alone and says so
+  - a recipes.json built offline from the stage-2 fixtures (test_fdb_seed.synthetic_recipes) loads: footer shows the
+    build, the ForeverDB recipes and the item-level DE table replace the seed, Forever-observed rows are labelled
 """
 import argparse, json, os, shutil, socket, subprocess, sys, tempfile, time, urllib.request
 
@@ -46,6 +48,14 @@ def main():
     api = start_api(state_dir, port)
     fails = []
     errors = {}
+    # stage-2 data file, written beside the page for the duration of the check only
+    import test_fdb_seed
+    data_dir = os.path.join(ROOT, 'data'); os.makedirs(data_dir, exist_ok=True)
+    rec_path = os.path.join(data_dir, 'recipes.json'); had_rec = os.path.exists(rec_path)
+    if had_rec:
+        os.replace(rec_path, rec_path + '.bak')
+    with open(rec_path, 'w', encoding='utf-8') as f:
+        json.dump(test_fdb_seed.synthetic_recipes(), f)
 
     def watch(page, name):
         errors[name] = []
@@ -139,6 +149,24 @@ def main():
             A.reload(); A.wait_for_function("document.querySelector('#syncBadge').textContent.startsWith('synced')", timeout=5000)
             check(A.input_value('#skTail') == '102', 'other browser sees the change after one reload')
 
+            # ---- stage 2: recipes.json (synthetic, real shapes) replaced the seed tables ----
+            check('build 1.60.1.70658' in B.locator('#footer').inner_text() and 'client dev-0077' in B.locator('#footer').inner_text(), 'footer carries the ForeverDB build and client from recipes.json')
+            check('Forever-observed' in B.locator('#dataStatus').inner_text(), 'header status names the DE rows')
+            B.click('#modePlan'); B.click('nav.tabs button[data-tab="tailoring"]'); B.check('#tailShowAll')
+            tail = B.locator('#tailTable').inner_text()
+            check('Woolen Cape' in tail and 'Bolt of Linen Cloth' in tail and 'Brown Linen Robe' not in tail, 'ForeverDB recipes replaced the seed tailoring table')
+            B.click('nav.tabs button[data-tab="shuffle"]'); B.fill('#shLevel', '22'); B.select_option('#shSlot', 'weapon'); B.dispatch_event('#shLevel', 'input')
+            out = B.locator('#shuffleOut').inner_text()
+            check('21–25 weapon green' in out and 'Forever (40 DEs)' in out and 'Lesser Astral Essence 73%' in out, 'Shuffle uses the item-level DE row and labels the Forever-observed source')
+            B.select_option('#shSlot', 'armor'); B.dispatch_event('#shLevel', 'input')
+            out = B.locator('#shuffleOut').inner_text()
+            check('Strange Dust 75% ×4–6' in out and 'Classic (C)' in out, 'armor 21–25 row is the Classic table, flagged')
+            check(B.evaluate("S.de.length") == 3 and B.evaluate("S.ui.loadedDeBuild") == '1.60.1.70658', 'DE table replaced once per build')
+            check(B.evaluate("S.mats.find(m=>m.id==='mote').itemId") == 247786 and B.evaluate("S.mats.find(m=>m.id==='mote').vendor") == 20, 'Mote of Magic got its Forever id and vendor price')
+            B.click('#modeSession'); B.fill('#sLvl', '22'); B.dispatch_event('#sLvl', 'input'); B.click('#sSlot button[data-v="weapon"]')
+            check('ilvl 21–25 weapon green' in B.locator('#sBracket').inner_text() and B.locator('#sMats button').first.inner_text() == 'Lesser Astral Essence', 'DE logger offers the row\'s mats for that item level and slot')
+            B.click('#sSlot button[data-v="armor"]')
+
             # ---- file:// still works, on localStorage alone ----
             ctxF = browser.new_context(viewport={'width': 1366, 'height': 900})
             F = ctxF.new_page(); watch(F, 'file')
@@ -148,6 +176,9 @@ def main():
             browser.close()
     finally:
         api.terminate(); api.wait(5); shutil.rmtree(state_dir, ignore_errors=True)
+        os.remove(rec_path)
+        if had_rec:
+            os.replace(rec_path + '.bak', rec_path)
 
     for name, errs in errors.items():
         # a 409 is logged by Chromium as a failed resource; it is the conflict path doing its job, not a page error
