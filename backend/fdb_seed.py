@@ -260,6 +260,13 @@ def build_output(recipes, items, de_rows, idmap, build, client):
     seen_ids, intermediates = {}, set()
     for prof, rs in recipes.items():
         for r in rs:
+            skill_flag = None
+            if r['skill'][0] is None and all(isinstance(v, (int, float)) for v in r['skill'][1:]):
+                # ForeverDB publishes yellow/green/grey but no learn (orange) skill for pattern- and drop-taught recipes:
+                # use the learn-at skill it does know, else start the recipe at yellow (never shown before it is usable)
+                las = r['learnedFrom'].get('learnAtSkill')
+                r['skill'][0] = int(las) if isinstance(las, (int, float)) and las <= r['skill'][1] else r['skill'][1]
+                skill_flag = '(C) orange skill unpublished; using ' + ('learn-at skill' if isinstance(las, (int, float)) else 'yellow')
             if not all(isinstance(v, (int, float)) for v in r['skill']):
                 out['unmapped'].append({'recipe': r['name'], 'spellId': r['spellId'], 'why': 'skill colours missing', 'skill': r['skill']}); continue
             rid = slug(r['name'])
@@ -287,6 +294,8 @@ def build_output(recipes, items, de_rows, idmap, build, client):
                     rec[flag] = True
             if r['changedFromClassic']:
                 rec['changedFromClassic'] = r['changedFromClassic']
+            if skill_flag:
+                rec['flag'] = skill_flag
             if r['makes']:
                 rec['count'] = r['makes']['count']
             if prof == 'tailoring':

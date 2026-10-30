@@ -173,6 +173,16 @@ class BuildOutputTest(unittest.TestCase):
         self.assertEqual((self.out['build'], self.out['client'], self.out['attribution']), ('1.60.1.70658', 'dev-0077', 'Data from ForeverDB.net'))
         json.dumps(self.out)  # serialisable
 
+    def test_missing_orange_skill_falls_back(self):
+        drop = copy.deepcopy(RECIPE_CAPE); drop['spellId'] = 8778; drop['name'] = 'Boots of Darkness'; drop['skill'] = {'orange': None, 'yellow': 135, 'green': 150, 'grey': 165}
+        drop['learnedFrom'] = {'automatic': False, 'sources': {'ways': ['drop'], 'learnAtSkill': 125}}
+        pat = copy.deepcopy(drop); pat['spellId'] = 7636; pat['name'] = 'Green Woolen Robe'; pat['learnedFrom'] = {'automatic': False, 'sources': {'ways': ['recipeItem']}}
+        out = fs.build_output({'tailoring': [fs.map_recipe(drop, 'tailoring'), fs.map_recipe(pat, 'tailoring')], 'enchanting': []}, {}, [], {}, 'b', 'c')
+        by = {r['name']: r for r in out['tailoring']}
+        self.assertEqual(by['Boots of Darkness']['skill'], [125, 135, 150, 165]); self.assertIn('learn-at', by['Boots of Darkness']['flag'])
+        self.assertEqual(by['Green Woolen Robe']['skill'], [135, 135, 150, 165]); self.assertIn('yellow', by['Green Woolen Robe']['flag'])
+        self.assertEqual(out['unmapped'], [])
+
     def test_same_name_recipes_disambiguated(self):
         twin = copy.deepcopy(RECIPE_CAPE); twin['spellId'] = 99999
         out = fs.build_output({'tailoring': [fs.map_recipe(RECIPE_CAPE, 'tailoring'), fs.map_recipe(twin, 'tailoring')], 'enchanting': []},
