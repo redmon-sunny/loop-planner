@@ -225,10 +225,4 @@ data/
 !data/.gitkeep
 *.lua
 SavedVariables/
-
-# secrets and local data never leave the LAN
-.env
-data/
-!data/.gitkeep
-*.lua
-SavedVariables/
+state/

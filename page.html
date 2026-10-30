@@ -77,6 +77,8 @@ textarea{width:100%;min-height:200px;font-family:var(--mono);font-size:12.5px}
 .toast{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20}
 .toast.show{opacity:1}
 .unpriced{outline:2px solid var(--warn)}
+.badge{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:700;font-family:var(--display);border:1px solid var(--line);color:var(--muted);vertical-align:middle}
+.badge.on{color:var(--ok);border-color:var(--ok)} .badge.off{color:var(--warn);border-color:var(--warn)} .badge.saving{color:var(--accent);border-color:var(--accent)}
 details{margin:8px 0} summary{cursor:pointer;color:var(--muted)}
 footer{color:var(--muted);font-size:12px;margin-top:16px}
 
@@ -125,7 +127,7 @@ footer{color:var(--muted);font-size:12px;margin-top:16px}
   <div style="min-width:0">
     <h1>Loop Planner</h1>
     <div class="sub">Tailoring → Disenchant → Enchanting for WoW: Forever. Seed rows marked <span class="flag">(C)</span> rest on Classic-era numbers.</div>
-    <div class="sub" id="dataStatus"></div>
+    <div class="sub"><span class="badge" id="syncBadge" title="Where this page's state is saved">local</span> <span id="dataStatus"></span></div>
   </div>
   <div class="hdr-right">
     <label>Character
@@ -404,20 +406,77 @@ const clone=o=>JSON.parse(JSON.stringify(o));
 function freshState(){
   return { mats:clone(SEED.mats), tailoring:clone(SEED.tailoring), enchanting:clone(SEED.enchanting), de:clone(SEED.de),
     prices:clone(SEED.examplePrices), priceManual:{}, priceExample:true,
-    chars:{'Main':{tail:95,ench:72}}, activeChar:'Main', observed:[], packs:clone(PACKS_DEFAULT), checks:{},
+    chars:{'Main':{tail:95,ench:72}}, activeChar:'Main', observed:[], obsDeleted:{}, packs:clone(PACKS_DEFAULT), checks:{},
     ui:{theme:'auto',tailValueMode:'de',obsMin:20,planTailTo:150,planEnchTo:150,mode:null,pack:'de'} };
 }
-function loadState(){
+// normalize: fill any key a stored document lacks (older versions, hand edits, a fresh server)
+function normalize(s){ const f=freshState(); for(const k of Object.keys(f)) if(s[k]===undefined) s[k]=f[k]; for(const k of Object.keys(f.ui)) if(s.ui[k]===undefined) s.ui[k]=f.ui[k]; for(const k of Object.keys(PACKS_DEFAULT)) if(!s.packs[k]) s.packs[k]=clone(PACKS_DEFAULT[k]); if(!s.chars[s.activeChar]) s.activeChar=Object.keys(s.chars)[0]; if(!Array.isArray(s.observed)) s.observed=[]; return s; }
+function loadLocal(){
   try{
     let raw=localStorage.getItem(KEY);
     if(!raw){ const old=localStorage.getItem('wowf-loop-planner-v1'); if(old){ const o=JSON.parse(old); const f=freshState(); Object.assign(f,{mats:o.mats||f.mats,tailoring:o.tailoring||f.tailoring,enchanting:o.enchanting||f.enchanting,de:o.de||f.de,prices:o.prices&&Object.keys(o.prices).length?o.prices:f.prices,priceManual:o.priceManual||{},observed:o.observed||[]}); if(o.prices&&Object.keys(o.prices).length) f.priceExample=false; if(o.skills) f.chars.Main={tail:o.skills.tail||1,ench:o.skills.ench||1}; Object.assign(f.ui,o.ui||{}); return f; } }
-    if(raw){ const s=JSON.parse(raw); const f=freshState(); for(const k of Object.keys(f)) if(s[k]===undefined) s[k]=f[k]; for(const k of Object.keys(f.ui)) if(s.ui[k]===undefined) s.ui[k]=f.ui[k]; for(const k of Object.keys(PACKS_DEFAULT)) if(!s.packs[k]) s.packs[k]=clone(PACKS_DEFAULT[k]); if(!s.chars[s.activeChar]) s.activeChar=Object.keys(s.chars)[0]; return s; }
+    if(raw) return normalize(JSON.parse(raw));
   }catch(e){}
   return freshState();
 }
-let S=loadState();
-function save(){ try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){} }
+let S=loadLocal();
 const cur=()=>S.chars[S.activeChar];
+
+// ---------- state API (shared document on the LAN; localStorage is the fallback) ----------
+// Same origin: nginx proxies /api/ to the state container; `state_api.py --static .` serves both in dev.
+// On file:// there is no API and the page runs on localStorage alone, exactly as before.
+const API=/^https?:/.test(location.protocol)?'api':null;
+const sync={online:false,pending:false,inFlight:false,timer:null,poll:null,lastErr:null};
+function setSync(mode){
+  const b=$('syncBadge'); if(!b) return;
+  if(!API){ b.className='badge'; b.textContent='local file'; b.title='Opened from disk: state lives in this browser only. Serve it to share state between devices.'; return; }
+  if(mode==='saving'||sync.pending||sync.inFlight){ b.className='badge saving'; b.textContent='saving…'; b.title='Writing to the state API'; return; }
+  if(sync.online){ b.className='badge on'; b.textContent='synced · rev '+(S.rev||0); b.title='Shared state on the LAN; every device sees this document. Last server write '+(S.updatedAt||'—'); return; }
+  b.className='badge off'; b.textContent='offline'; b.title='State API unreachable ('+(sync.lastErr||'no response')+'). Edits are kept in this browser and pushed when it comes back.';
+}
+// Mode and theme are per device (the iPad stays in Session while the desk stays in Plan), so they never travel in the shared doc.
+const PREFS_KEY=KEY+'-device';
+function readPrefs(){ try{ return JSON.parse(localStorage.getItem(PREFS_KEY)||'{}')||{}; }catch(e){ return {}; } }
+function applyPrefs(s){ const p=readPrefs(); if(p.mode) s.ui.mode=p.mode; if(p.theme) s.ui.theme=p.theme; return s; }
+function sharedDoc(){ const d=Object.assign({},S,{ui:Object.assign({},S.ui)}); delete d.ui.mode; delete d.ui.theme; delete d.dirty; return d; }
+function saveLocal(){ try{ localStorage.setItem(KEY,JSON.stringify(S)); localStorage.setItem(PREFS_KEY,JSON.stringify({mode:S.ui.mode,theme:S.ui.theme})); }catch(e){} }
+function save(){ if(API&&!sync.online) S.dirty=true; saveLocal(); scheduleSync(); }
+function scheduleSync(){ if(!API) return; sync.pending=true; clearTimeout(sync.timer); sync.timer=setTimeout(flushSync,400); setSync('saving'); }
+async function apiFetch(path,opts){ const r=await fetch(API+path,Object.assign({cache:'no-store'},opts||{})); if(!r.ok) throw new Error('HTTP '+r.status); return r; }
+async function flushSync(keepalive){
+  if(!API||sync.inFlight) return; sync.inFlight=true; sync.pending=false; clearTimeout(sync.timer);
+  try{ const r=await apiFetch('/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(sharedDoc()),keepalive:!!keepalive}); const j=await r.json(); S.rev=j.rev; S.updatedAt=j.updatedAt; S.dirty=false; sync.online=true; sync.lastErr=null; if(Array.isArray(j.observed)){ const changed=j.observed.length!==S.observed.length; S.observed=j.observed; S.obsDeleted=j.obsDeleted||{}; if(changed){ renderObserved(); renderSession(); renderShuffle(); } } saveLocal(); }
+  catch(e){ sync.online=false; sync.lastErr=e.message; S.dirty=true; saveLocal(); }
+  finally{ sync.inFlight=false; setSync(); if(sync.pending) flushSync(); }
+}
+// One tap, one POST: the entry lands on the server before the debounced PUT, and PUT unions `observed` anyway.
+function postObserved(o){ if(!API) return; apiFetch('/observed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o),keepalive:true}).then(r=>r.json()).then(j=>{ if(j.rev) S.rev=Math.max(S.rev||0,j.rev); }).catch(()=>{}); }
+function deleteObserved(body){ if(!API) return Promise.resolve(); return apiFetch('/observed',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).catch(()=>{}); }
+function adoptServerState(s){ S=applyPrefs(normalize(s)); saveLocal(); syncHeader(); applyTheme(); if(S.ui.mode) setMode(S.ui.mode,true); renderAll(); }
+async function loadRemote(){
+  if(!API) { setSync(); return; }
+  try{
+    const r=await apiFetch('/state');
+    if(r.status===204){ sync.online=true; S.dirty=true; scheduleSync(); return; }   // fresh server: seed it from this browser
+    const remote=await r.json(); sync.online=true; sync.lastErr=null;
+    const localRev=S.rev||0;
+    if(S.dirty&&localRev>=(remote.rev||0)){ scheduleSync(); return; }               // offline edits, nobody else wrote: push ours
+    if(S.dirty&&localRev<(remote.rev||0)){ const mine=S.observed.slice(); adoptServerState(remote); const have=new Set(S.observed.map(obsKey)); let n=0; for(const o of mine) if(!have.has(obsKey(o))){ S.observed.push(o); n++; } if(n) scheduleSync(); toast(`Server had newer state (rev ${remote.rev}); offline edits dropped${n?`, ${n} DE logs kept`:''}.`); return; }
+    adoptServerState(remote);
+  }catch(e){ sync.online=false; sync.lastErr=e.message; }
+  setSync();
+}
+const obsKey=o=>[o.lvl,o.slot,o.quality,o.mat,o.qty,o.ts].join('|');
+async function pollHealth(){
+  if(!API||document.hidden) return;
+  try{ const r=await apiFetch('/health'); const h=await r.json(); const was=sync.online; sync.online=true; sync.lastErr=null;
+    if(!was&&(S.dirty||sync.pending)) { flushSync(); return; }
+    if(!sync.pending&&!sync.inFlight&&h.rev>(S.rev||0)&&!S.dirty){ const s=await (await apiFetch('/state')).json(); adoptServerState(s); toast('Updated from another device.'); }
+  }catch(e){ sync.online=false; sync.lastErr=e.message; }
+  setSync();
+}
+addEventListener('pagehide',()=>{ if(sync.pending) flushSync(true); });
+addEventListener('visibilitychange',()=>{ if(!document.hidden) pollHealth(); });
 
 // ---------- helpers ----------
 const $=id=>document.getElementById(id);
@@ -608,14 +667,14 @@ function renderSession(){
   $('sMats').innerHTML=opts.map(m=>`<button data-mat="${m}" aria-pressed="${sessionSel.mat===m}">${esc(matName(m))}</button>`).join('');
   $('sMats').querySelectorAll('button').forEach(x=>x.addEventListener('click',()=>{ sessionSel.mat=x.dataset.mat; renderSession(); }));
   $('sQty').innerHTML=[1,2,3,4,5,6].map(q=>`<button data-q="${q}">+${q}</button>`).join('');
-  $('sQty').querySelectorAll('button').forEach(x=>x.addEventListener('click',()=>{ if(!sessionSel.mat) return; S.observed.push({lvl,slot:sessionSel.slot,quality:sessionSel.quality,mat:sessionSel.mat,qty:+x.dataset.q,ts:Date.now()}); save(); renderAll(); toast(`Logged ${x.dataset.q} ${matName(sessionSel.mat)}`); }));
+  $('sQty').querySelectorAll('button').forEach(x=>x.addEventListener('click',()=>{ if(!sessionSel.mat) return; const o={lvl,slot:sessionSel.slot,quality:sessionSel.quality,mat:sessionSel.mat,qty:+x.dataset.q,ts:Date.now()}; S.observed.push(o); postObserved(o); save(); renderAll(); toast(`Logged ${x.dataset.q} ${matName(sessionSel.mat)}`); }));
   const last=S.observed[S.observed.length-1]; $('sLast').textContent=last?`Last: lvl ${last.lvl} ${last.slot} → ${last.qty} ${matName(last.mat)} · ${S.observed.length} logged`:'Nothing logged yet';
 }
 
 // ---------- data files (same-origin, optional) ----------
 async function loadDataFiles(){
   if(!/^https?:/.test(location.protocol)) return;
-  const status=[]; let changed=false; const fetchJson=async p=>{ try{ const r=await fetch(p,{cache:'no-store'}); if(!r.ok) return null; return await r.json(); }catch(e){ return null; } };
+  const status=[]; let changed=false; const fetchJson=async p=>{ try{ const r=await fetch(p,{cache:'no-store'}); if(!r.ok||r.status===204) return null; return await r.json(); }catch(e){ return null; } };
   const rec=await fetchJson('data/recipes.json');
   if(rec&&Array.isArray(rec.tailoring)&&rec.build){ if(S.ui.loadedBuild!==rec.build){ const keepSell=list=>{ for(const r of list){ const old=[...S.tailoring,...S.enchanting].find(x=>x.id===r.id); if(old&&old.sell) r.sell=old.sell; } return list; }; const custom=[...S.tailoring,...S.enchanting].filter(r=>r.custom); S.tailoring=keepSell(rec.tailoring).concat(custom.filter(r=>r.output)); S.enchanting=keepSell(rec.enchanting).concat(custom.filter(r=>!r.output)); for(const m of rec.mats||[]){ const old=matById(m.id); if(old){ if(m.itemId) old.itemId=m.itemId; if(old.vendor==null&&m.vendor!=null) old.vendor=m.vendor; } else S.mats.push({id:m.id,name:m.name,vendor:m.vendor??null,de:!!m.de,itemId:m.itemId}); } S.ui.loadedBuild=rec.build; changed=true; } status.push(`recipes: ForeverDB build ${rec.build}`); }
   const pr=await fetchJson('data/prices.json');
@@ -632,8 +691,9 @@ function renderFooter(){ $('footer').innerHTML=(S.ui.loadedBuild?`Recipe and ite
 // ---------- modes, header, wiring ----------
 function renderAll(){ renderPrices(); renderTailoring(); renderEnchanting(); renderShuffle(); renderMacros(); renderObserved(); renderData(); renderSession(); renderFooter(); }
 function applyTheme(){ const t=S.ui.theme||'auto'; if(t==='auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme',t); }
-function setMode(m){ S.ui.mode=m; save(); $('session').hidden=m!=='session'; $('planTabs').hidden=m!=='plan'; $('plan').hidden=m!=='plan'; $('modeSession').setAttribute('aria-pressed',m==='session'); $('modePlan').setAttribute('aria-pressed',m==='plan'); }
-function syncHeader(){ const sel=$('charSel'); sel.innerHTML=Object.keys(S.chars).map(n=>`<option ${n===S.activeChar?'selected':''}>${esc(n)}</option>`).join(''); $('skTail').value=cur().tail; $('skEnch').value=cur().ench; $('planTailFrom').value=cur().tail; $('planEnchFrom').value=cur().ench; }
+function setMode(m,noSave){ S.ui.mode=m; if(!noSave) save(); $('session').hidden=m!=='session'; $('planTabs').hidden=m!=='plan'; $('plan').hidden=m!=='plan'; $('modeSession').setAttribute('aria-pressed',m==='session'); $('modePlan').setAttribute('aria-pressed',m==='plan'); }
+function syncHeader(){ const sel=$('charSel'); sel.innerHTML=Object.keys(S.chars).map(n=>`<option ${n===S.activeChar?'selected':''}>${esc(n)}</option>`).join(''); $('skTail').value=cur().tail; $('skEnch').value=cur().ench; $('planTailFrom').value=cur().tail; $('planEnchFrom').value=cur().ench;
+  $('theme').value=S.ui.theme||'auto'; $('tailValueMode').value=S.ui.tailValueMode||'de'; $('planTailTo').value=S.ui.planTailTo||150; $('planEnchTo').value=S.ui.planEnchTo||150; $('obsMin').value=S.ui.obsMin||20; if($('mPack').options.length) $('mPack').value=S.ui.pack||'de'; }
 document.querySelectorAll('nav.tabs button').forEach(b=>b.addEventListener('click',()=>{ document.querySelectorAll('nav.tabs button').forEach(x=>x.setAttribute('aria-selected','false')); b.setAttribute('aria-selected','true'); document.querySelectorAll('section.tab').forEach(s=>s.classList.remove('active')); $('tab-'+b.dataset.tab).classList.add('active'); }));
 $('charSel').addEventListener('change',e=>{ S.activeChar=e.target.value; S.ui.bagGreens=null; save(); syncHeader(); renderAll(); });
 $('charAdd').addEventListener('click',()=>{ const inp=$('charNew'); if(inp.hidden){ inp.hidden=false; inp.focus(); return; } const n=inp.value.trim(); if(n&&!S.chars[n]){ S.chars[n]={tail:1,ench:1}; S.activeChar=n; save(); } inp.value=''; inp.hidden=true; syncHeader(); renderAll(); });
@@ -655,15 +715,17 @@ $('copyCache').addEventListener('click',()=>copyText(cacheBlock(fillMacros(S.ui.
 $('checkReset').addEventListener('click',()=>{ delete S.checks[S.ui.pack]; save(); renderSession(); });
 $('lvlDown').addEventListener('click',()=>{ $('sLvl').value=Math.max(1,+$('sLvl').value-1); renderSession(); }); $('lvlUp').addEventListener('click',()=>{ $('sLvl').value=Math.min(60,+$('sLvl').value+1); renderSession(); }); $('sLvl').addEventListener('input',renderSession);
 for(const [gid,key] of [['sSlot','slot'],['sQual','quality']]) $(gid).querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ sessionSel[key]=b.dataset.v; $(gid).querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); renderSession(); }));
-$('sUndo').addEventListener('click',()=>{ S.observed.pop(); save(); renderAll(); });
+$('sUndo').addEventListener('click',()=>{ const o=S.observed.pop(); if(!o) return; deleteObserved(o).then(()=>save()); renderAll(); });
 $('obsMin').value=S.ui.obsMin||20; $('obsMin').addEventListener('change',e=>{ S.ui.obsMin=+e.target.value||20; save(); renderAll(); });
 $('dataApply').addEventListener('click',applyData);
 $('dataExport').addEventListener('click',()=>copyText(JSON.stringify(S,null,1),'Export copied'));
-$('dataImportBtn').addEventListener('click',()=>{ try{ const s=JSON.parse($('jsonImport').value); const f=freshState(); for(const k of Object.keys(f)) if(s[k]===undefined) s[k]=f[k]; S=s; save(); syncHeader(); applyTheme(); renderAll(); $('jsonImport').value=''; toast('Imported.'); }catch(err){ toast('Import failed: '+err.message); } });
+$('dataImportBtn').addEventListener('click',()=>{ try{ const s=normalize(JSON.parse($('jsonImport').value)); s.rev=S.rev; S=s; save(); syncHeader(); applyTheme(); renderAll(); $('jsonImport').value=''; toast('Imported.'); }catch(err){ toast('Import failed: '+err.message); } });
 $('dataReset').addEventListener('click',()=>{ $('resetConfirm').hidden=false; }); $('dataResetNo').addEventListener('click',()=>{ $('resetConfirm').hidden=true; });
-$('dataResetYes').addEventListener('click',()=>{ S=freshState(); save(); $('resetConfirm').hidden=true; syncHeader(); applyTheme(); renderAll(); toast('Reset.'); });
+$('dataResetYes').addEventListener('click',()=>{ const rev=S.rev; S=freshState(); S.rev=rev; deleteObserved({all:true}).then(()=>save()); $('resetConfirm').hidden=true; syncHeader(); applyTheme(); renderAll(); toast('Reset.'); });
 
 syncHeader(); applyTheme();
-setMode(S.ui.mode||((matchMedia('(pointer:coarse)').matches||innerWidth<900)?'session':'plan'));
-renderAll(); loadDataFiles();
+setMode(S.ui.mode||((matchMedia('(pointer:coarse)').matches||innerWidth<900)?'session':'plan'),true);
+renderAll(); setSync();
+// Boot: the page is already live on localStorage; now swap in the shared document, then the data files.
+loadRemote().then(loadDataFiles).then(()=>{ if(API) sync.poll=setInterval(pollHealth,15000); });
 </script>

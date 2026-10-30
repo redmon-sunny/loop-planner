@@ -1,4 +1,4 @@
-﻿# Loop Planner
+# Loop Planner
 
 Self-hosted Tailoring -> Disenchant -> Enchanting planner for World of Warcraft: Forever. Single HTML page plus two Python scripts; runs on a LAN, one user.
 
@@ -10,16 +10,20 @@ Single static page plus two Python scripts. No frameworks, no database, no third
 loop-planner/
   index.html              the planner (open directly, or serve it)
   data/                   files the page loads on open when served over http(s)
-    recipes.json          from fdb_seed.py   (ForeverDB)     â€” optional
-    prices.json           from sv_parse.py   (Auctionator)   â€” optional
-    observed.json         from sv_parse.py   (your DE log)   â€” optional
+    recipes.json          from fdb_seed.py   (ForeverDB)     — optional
+    prices.json           from sv_parse.py   (Auctionator)   — optional
+    observed.json         from sv_parse.py   (your DE log)   — optional
     raw/                  ForeverDB responses, cached; not served
   backend/
     fdb_seed.py           ForeverDB API -> data/recipes.json
     sv_parse.py           SavedVariables -> data/prices.json + data/observed.json
     lua_table.py          Lua table-literal parser used by sv_parse.py (no Lua runtime)
     mat_item_ids.json     planner mat id <-> WoW item id/name
-  docker-compose.yml      nginx:alpine on :8087
+    state_api.py          shared-state HTTP service (state/state.json) — see "Shared state"
+    test_state_api.py     unit tests for it (stdlib)
+    headless_check.py     Playwright page check (dev only)
+  state/                  state.json, written only by the API; git-ignored
+  docker-compose.yml      nginx:alpine on :8087 + python:3.12-alpine state API behind /api/
   nginx.conf
 ```
 
@@ -27,8 +31,10 @@ loop-planner/
 
 **Local file:** open `index.html`. Seed data only; the `data/` loader is skipped on `file://`.
 
-**Homelab:** `docker compose up -d`, then `http://<host>:8087/`. The page reads `data/*.json` from its own
-origin (same-origin, no CORS). Keep it off the public internet â€” there is no auth, and localStorage is per-browser.
+**Homelab:** `docker compose up -d`, then `http://<host>:8087/`. Two containers: nginx serving the page and
+`data/`, and the state API (see below) behind `/api/`. Keep it off the public internet — there is no auth.
+
+**Without Docker:** `python backend/state_api.py --static .` serves the page, `data/` and the API on :8088.
 
 ## Precedence (what wins when sources disagree)
 
@@ -38,15 +44,45 @@ origin (same-origin, no CORS). Keep it off the public internet â€” there is
 | Prices | a price you typed by hand beats `prices.json` until a scan **newer** than your edit arrives; then the scan wins |
 | Observed disenchants | union of the page's log and `observed.json`, deduped on (lvl, slot, quality, mat, qty, ts) |
 
-Everything the page holds is in the browser's localStorage. **Data â†’ Export** writes it all to one JSON; Import restores it.
+**Data → Export** copies the whole document as JSON; Import restores it.
+
+## Shared state — `state_api.py` (v0.4)
+
+One JSON document, `state/state.json`, shared by every browser on the LAN: characters and skills, typed prices,
+the observed DE log, checklists, packs, UI prefs. The page loads it on open, writes it 400 ms after any change,
+and shows a badge in the header:
+
+| Badge | Meaning |
+|---|---|
+| `synced · rev N` | the API has this document; N climbs on every write from any device |
+| `saving…` | a write is in flight |
+| `offline` | API unreachable; edits stay in this browser's localStorage and are pushed when it answers again |
+| `local file` | opened from disk: localStorage only, nothing shared |
+
+Rules:
+- Whole-document **last write wins**, except the observed DE log, which the server **unions** by (lvl, slot, quality, mat, qty, ts).
+  A tap on the iPad and a save from the desk a second later both survive. Undo leaves a tombstone so a device
+  still holding the entry can't re-add it; logging the same entry again on purpose clears the tombstone.
+- Every save returns the merged log, so the writer adopts what other devices added or removed. Open pages also poll
+  `/api/health` every 15 s and pull the document when another device has written since (toast: "Updated from another device").
+- Mode and theme are per device, not in the shared document: the iPad stays in Session while the desk stays in Plan.
+- Offline edits: if nothing else wrote meanwhile they are pushed as-is; if the server moved on, the server wins and
+  only your offline DE taps are merged back (the page says so in a toast).
+- A data file that no script has written yet (`data/recipes.json` before the first seed) answers 204, not 404, so
+  the browser console stays clean.
+
+Endpoints, all JSON, all under `/api/`: `GET health`, `GET state` (204 until the first write), `PUT state`,
+`POST observed` (one entry or a list), `DELETE observed` (one entry, or `{"all":true}`). Stdlib Python, atomic
+writes, one lock. `python backend/test_state_api.py` runs the unit tests; `python backend/headless_check.py`
+(needs Playwright, dev only) drives two browsers through the sync, offline and layout checks.
 
 ## Backend
 
-### Prices and observed DE â€” `sv_parse.py`
+### Prices and observed DE — `sv_parse.py`
 
 Auctionator writes its scan database to
 `World of Warcraft\_classic_\WTF\Account\<ACCOUNT>\SavedVariables\Auctionator.lua`
-(folder name may differ for Forever â€” look for the one containing `Auctionator.lua` after your first scan).
+(folder name may differ for Forever — look for the one containing `Auctionator.lua` after your first scan).
 The file is written on logout or `/reload`, not live.
 
 ```
@@ -60,43 +96,43 @@ python backend/sv_parse.py --auctionator "<path>/Auctionator.lua" --observed-csv
 - `observed.csv` is a hand-kept log: `lvl,slot,quality,mat,qty` per disenchant (mat = planner id or item name).
   One line per DE is the whole discipline; the Observed tab does the stats.
 - `--de-sv <file>` is a stub for a disenchant addon's SavedVariables. Run `--dump <file>` after a few disenchants,
-  find the table that records source item â†’ result, and fill in `observed_from_addon()`.
+  find the table that records source item → result, and fill in `observed_from_addon()`.
 
 Windows scheduled task or a post-logout hook: run the command above, then copy `data/*.json` to the homelab share.
 Or run it on the homelab against a synced copy of the `WTF` folder.
 
-### Recipes â€” `fdb_seed.py`
+### Recipes — `fdb_seed.py`
 
 1. Log in at https://foreverdb.net with Battle.net, request API access (state the use case, agree to credit the site), create a key.
-2. `export FDB_KEY=â€¦` then `python backend/fdb_seed.py --inspect` â€” prints the first recipe and item objects.
+2. `export FDB_KEY=…` then `python backend/fdb_seed.py --inspect` — prints the first recipe and item objects.
 3. If any field in `map_recipe()` / `map_item()` comes back empty, fix the `pick()` paths to match what you saw. The API docs list
    what is covered (skill colours, reagents, product, learnedFrom; item quality, required level, sell price) but not the exact key names.
-4. `python backend/fdb_seed.py --out data` â€” writes `data/recipes.json`, caches every response in `data/raw/`, and updates
+4. `python backend/fdb_seed.py --out data` — writes `data/recipes.json`, caches every response in `data/raw/`, and updates
    `backend/mat_item_ids.json` with real item ids. Unmapped recipes are listed under `unmapped` in the file rather than dropped.
 
 Rate limit 60/min, 10k/day; the script sleeps between calls and honours `Retry-After`. Re-run per game build.
-Attribution: the page footer shows "Data from ForeverDB.net" whenever `recipes.json` is loaded â€” keep it.
+Attribution: the page footer shows "Data from ForeverDB.net" whenever `recipes.json` is loaded — keep it.
 
 ## What the page does with it
 
-- **Prices** â€” type or import AH buyouts; vendor items are fixed. Bolts can be priced too (the cost model buys them if cheaper than crafting).
-- **Tailoring** â€” per craft at your skill: skill-up chance, cost/point, expected disenchant yield, net after DE value.
-- **Enchanting** â€” per recipe: cost/point with each mat at the cheaper of AH and its effective crafted price.
-- **Plan** â€” greedy Aâ†’B solver for both professions; tailoring's DE output is banked and enchanting draws it down. Outputs crafts, cloth consumed, shopping list, surplus, net engine cost.
-- **Shuffle** â€” expected DE value and max buyout per required-level bracket.
-- **Observed DE** â€” log real results; 20 samples per bracket+slot overrides the seed table.
-- **Data** â€” every table as editable JSON; Export/Import; Reset.
-- Header line: next Enchanting wand floor and next Tailoring trainer gate â€” the only two numbers you need while playing.
+- **Prices** — type or import AH buyouts; vendor items are fixed. Bolts can be priced too (the cost model buys them if cheaper than crafting).
+- **Tailoring** — per craft at your skill: skill-up chance, cost/point, expected disenchant yield, net after DE value.
+- **Enchanting** — per recipe: cost/point with each mat at the cheaper of AH and its effective crafted price.
+- **Plan** — greedy A→B solver for both professions; tailoring's DE output is banked and enchanting draws it down. Outputs crafts, cloth consumed, shopping list, surplus, net engine cost.
+- **Shuffle** — expected DE value and max buyout per required-level bracket.
+- **Observed DE** — log real results; 20 samples per bracket+slot overrides the seed table.
+- **Data** — every table as editable JSON; Export/Import; Reset.
+- Header line: next Enchanting wand floor and next Tailoring trainer gate — the only two numbers you need while playing.
 
-## v0.3 â€” Session mode (added 2026-10-23)
+## v0.3 — Session mode (added 2026-10-23)
 
 `page.html` is the source; `./build.sh` wraps it into `index.html` for nginx. The page opens in **Session** mode on
 touch or narrow screens and **Plan** mode on the desk; the toggle in the header is remembered.
 
 Session mode is the couch/iPad flow: Now tiles (both skills, distance to the next wand floor and trainer gate,
-price freshness, DE-bag count once the companion addon exists) â†’ This stop (the cheapest enchant and craft right now,
-buyout ceilings, one rule) â†’ a session pack (Disenchant batch / Craft + enchant / Cloth farm / AH + mail) that fills
-eight fixed macros LP1â€“LP8 for A/B/X/Y and LB+A/B/X/Y, copies them, and shows a tap checklist â†’ a one-tap disenchant
+price freshness, DE-bag count once the companion addon exists) → This stop (the cheapest enchant and craft right now,
+buyout ceilings, one rule) → a session pack (Disenchant batch / Craft + enchant / Cloth farm / AH + mail) that fills
+eight fixed macros LP1–LP8 for A/B/X/Y and LB+A/B/X/Y, copies them, and shows a tap checklist → a one-tap disenchant
 logger. Plan mode is the tab rail plus a **Macros** tab where pack templates are edited and exported in
 `macros-cache.txt` shape.
 
