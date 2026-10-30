@@ -1,0 +1,11 @@
+services:
+  loop-planner:
+    image: nginx:alpine
+    container_name: loop-planner
+    restart: unless-stopped
+    ports:
+      - "8087:80"          # or drop this and put it behind the existing reverse proxy
+    volumes:
+      - ./index.html:/usr/share/nginx/html/index.html:ro
+      - ./data:/usr/share/nginx/html/data:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
