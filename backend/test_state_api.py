@@ -8,9 +8,9 @@ import json, os, shutil, subprocess, sys, tempfile, time, unittest, urllib.reque
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
-def call(url, method='GET', body=None):
+def call(url, method='GET', body=None, headers=None):
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(url, data=data, method=method, headers={'Content-Type': 'application/json'})
+    req = urllib.request.Request(url, data=data, method=method, headers=dict({'Content-Type': 'application/json'}, **(headers or {})))
     try:
         with urllib.request.urlopen(req, timeout=5) as r:
             return r.status, json.loads(r.read() or b'null'), dict(r.headers)
@@ -91,13 +91,30 @@ class StateApiTest(unittest.TestCase):
         code, _, _ = call(self.base + '/api/nothing')
         self.assertEqual(code, 404)
 
-    def test_05_health_and_cors(self):
+    def test_05_health_no_cors(self):
         code, body, hdr = call(self.base + '/api/health')
         self.assertEqual(code, 200); self.assertTrue(body['ok']); self.assertGreater(body['rev'], 0)
-        self.assertEqual(hdr.get('Access-Control-Allow-Origin'), '*')
+        self.assertNotIn('Access-Control-Allow-Origin', hdr, 'same-origin only')
         req = urllib.request.Request(self.base + '/api/state', method='OPTIONS')
-        with urllib.request.urlopen(req, timeout=5) as r:
-            self.assertEqual(r.status, 204)
+        with self.assertRaises(urllib.error.HTTPError):
+            urllib.request.urlopen(req, timeout=5)
+
+    def test_05b_if_match(self):
+        _, doc, _ = call(self.base + '/api/state')
+        rev = doc['rev']
+        # stale writer: nothing written, current document comes back
+        code, body, _ = call(self.base + '/api/state', 'PUT', {'chars': {'Main': {'tail': 1, 'ench': 1}}, 'observed': []}, headers={'If-Match': str(rev - 1)})
+        self.assertEqual(code, 409); self.assertEqual(body['rev'], rev); self.assertIn('chars', body)
+        _, after, _ = call(self.base + '/api/state')
+        self.assertEqual(after['rev'], rev, 'a 409 writes nothing')
+        # current writer
+        code, body, _ = call(self.base + '/api/state', 'PUT', {'chars': {'Main': {'tail': 9, 'ench': 9}}, 'observed': []}, headers={'If-Match': str(rev)})
+        self.assertEqual(code, 200); self.assertEqual(body['rev'], rev + 1)
+        # If-Match: 0 means "expect no document" and must fail once one exists
+        code, body, _ = call(self.base + '/api/state', 'PUT', {'observed': []}, headers={'If-Match': '0'})
+        self.assertEqual(code, 409)
+        code, body, _ = call(self.base + '/api/state', 'PUT', {'observed': []}, headers={'If-Match': 'abc'})
+        self.assertEqual(code, 400)
 
     def test_06_static_dev_mode(self):
         with urllib.request.urlopen(self.base + '/', timeout=5) as r:

@@ -434,7 +434,7 @@ const cur=()=>S.chars[S.activeChar];
 // Same origin: nginx proxies /api/ to the state container; `state_api.py --static .` serves both in dev.
 // On file:// there is no API and the page runs on localStorage alone, exactly as before.
 const API=/^https?:/.test(location.protocol)?'api':null;
-const sync={online:false,pending:false,inFlight:false,timer:null,poll:null,lastErr:null};
+const sync={online:false,pending:false,inFlight:false,timer:null,poll:null,lastErr:null,conflicts:0,obsQueued:0};
 function setSync(mode){
   const b=$('syncBadge'); if(!b) return;
   if(!API){ b.className='badge'; b.textContent='local file'; b.title='Opened from disk: state lives in this browser only. Serve it to share state between devices.'; return; }
@@ -443,43 +443,84 @@ function setSync(mode){
   b.className='badge off'; b.textContent='offline'; b.title='State API unreachable ('+(sync.lastErr||'no response')+'). Edits are kept in this browser and pushed when it comes back.';
 }
 // Mode and theme are per device (the iPad stays in Session while the desk stays in Plan), so they never travel in the shared doc.
-const PREFS_KEY=KEY+'-device';
+const PREFS_KEY=KEY+'-device', SYNCED_KEY=KEY+'-synced';
 function readPrefs(){ try{ return JSON.parse(localStorage.getItem(PREFS_KEY)||'{}')||{}; }catch(e){ return {}; } }
 function applyPrefs(s){ const p=readPrefs(); if(p.mode) s.ui.mode=p.mode; if(p.theme) s.ui.theme=p.theme; return s; }
-function sharedDoc(){ const d=Object.assign({},S,{ui:Object.assign({},S.ui)}); delete d.ui.mode; delete d.ui.theme; delete d.dirty; return d; }
+function sharedDoc(){ const d=Object.assign({},S,{ui:Object.assign({},S.ui)}); delete d.ui.mode; delete d.ui.theme; return d; }
 function saveLocal(){ try{ localStorage.setItem(KEY,JSON.stringify(S)); localStorage.setItem(PREFS_KEY,JSON.stringify({mode:S.ui.mode,theme:S.ui.theme})); }catch(e){} }
-function save(){ if(API&&!sync.online) S.dirty=true; saveLocal(); scheduleSync(); }
+// ---- change tracking: a snapshot of the document as the server last confirmed it, one entry per path.
+// Plain objects are split two levels deep (chars.Main.tail, prices.linen, ui.pack, packs.de.slots, checks.de.0);
+// arrays and anything deeper are tracked whole. So the iPad bumping Enchanting and the desk bumping Tailoring on
+// the same character are two different paths and never clobber each other.
+// observed/obsDeleted are the server's to merge (union + tombstones) and are never re-applied from here.
+const SKIP_PATHS=new Set(['observed','obsDeleted','rev','updatedAt']), SEP='\u0001';
+let synced=(()=>{ try{ return JSON.parse(localStorage.getItem(SYNCED_KEY)||'{}')||{}; }catch(e){ return {}; } })();
+const DEVICE_PATHS=new Set(['ui'+SEP+'mode','ui'+SEP+'theme']), SNAP_DEPTH=2;
+const isPlain=v=>v&&typeof v==='object'&&!Array.isArray(v);
+function snapshotOf(doc){ const out={}; (function walk(o,prefix,depth){ for(const [k,v] of Object.entries(o)){ const pk=prefix+k; if(!prefix&&SKIP_PATHS.has(k)) continue; if(DEVICE_PATHS.has(pk)) continue; if(isPlain(v)&&depth<SNAP_DEPTH){ out[pk+SEP]='{'; walk(v,pk+SEP,depth+1); } else out[pk]=JSON.stringify(v); } })(doc,'',0); return out; }
+function markSynced(doc){ synced=snapshotOf(doc); try{ localStorage.setItem(SYNCED_KEY,JSON.stringify(synced)); }catch(e){} }
+// First contact (no snapshot yet): what this browser holds is defaults or pre-sync data, not edits — the server wins.
+if(API&&!localStorage.getItem(SYNCED_KEY)) markSynced(sharedDoc());
+function changedPaths(){ const now=snapshotOf(sharedDoc()); const keys=new Set([...Object.keys(now),...Object.keys(synced)]); return [...keys].filter(k=>now[k]!==synced[k]); }
+function getPath(doc,p){ const parts=p.split(SEP); const marker=parts[parts.length-1]===''; if(marker) parts.pop(); let cur=doc; for(const k of parts){ if(!isPlain(cur)) return undefined; cur=cur[k]; } return marker?(isPlain(cur)?{}:undefined):cur; }
+function setPath(doc,p,v){ const parts=p.split(SEP); const marker=parts[parts.length-1]===''; if(marker) parts.pop(); const last=parts.pop(); let cur=doc; for(const k of parts){ if(!isPlain(cur[k])) cur[k]={}; cur=cur[k]; } if(marker){ if(!isPlain(cur[last])) cur[last]={}; return; } if(v===undefined) delete cur[last]; else cur[last]=v; }
+// Take the server's document, re-apply only the paths this browser changed since it last synced, union any
+// taps that never reached the server (and aren't tombstoned), then render. Returns how many of ours were re-applied.
+function mergeRemote(remote){
+  const mine=changedPaths(); const local=sharedDoc(); const base=normalize(remote); markSynced(base);
+  for(const p of mine){ const v=getPath(local,p); setPath(base,p,v===undefined?undefined:clone(v)); }
+  const tomb=base.obsDeleted||{}; const have=new Set(base.observed.map(obsKey)); for(const o of S.observed){ const k=obsKey(o); if(!have.has(k)&&!tomb[k]){ base.observed.push(o); have.add(k); } }
+  base.observed.sort((a,b)=>(a.ts||0)-(b.ts||0));
+  S=applyPrefs(base); saveLocal(); syncHeader(); applyTheme(); if(S.ui.mode) setMode(S.ui.mode,true); renderAll(); return mine.length;
+}
+function save(){ saveLocal(); scheduleSync(); }
 function scheduleSync(){ if(!API) return; sync.pending=true; clearTimeout(sync.timer); sync.timer=setTimeout(flushSync,400); setSync('saving'); }
 async function apiFetch(path,opts){ const r=await fetch(API+path,Object.assign({cache:'no-store'},opts||{})); if(!r.ok) throw new Error('HTTP '+r.status); return r; }
 async function flushSync(keepalive){
   if(!API||sync.inFlight) return; sync.inFlight=true; sync.pending=false; clearTimeout(sync.timer);
-  try{ const r=await apiFetch('/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(sharedDoc()),keepalive:!!keepalive}); const j=await r.json(); S.rev=j.rev; S.updatedAt=j.updatedAt; S.dirty=false; sync.online=true; sync.lastErr=null; if(Array.isArray(j.observed)){ const changed=j.observed.length!==S.observed.length; S.observed=j.observed; S.obsDeleted=j.obsDeleted||{}; if(changed){ renderObserved(); renderSession(); renderShuffle(); } } saveLocal(); }
-  catch(e){ sync.online=false; sync.lastErr=e.message; S.dirty=true; saveLocal(); }
+  // nothing in the shared document moved (a mode or theme switch, say): no PUT, no rev churn on other devices
+  if(sync.online&&(S.rev||0)>0&&!sync.obsQueued&&changedPaths().length===0){ sync.inFlight=false; setSync(); return; }
+  try{
+    const doc=sharedDoc();
+    const r=await fetch(API+'/state',{method:'PUT',cache:'no-store',headers:{'Content-Type':'application/json','If-Match':String(S.rev||0)},body:JSON.stringify(doc),keepalive:!!keepalive});
+    if(r.status===409){
+      // someone else wrote since we loaded: take theirs, put our changed paths back on top, try again (bounded)
+      const remote=await r.json(); sync.online=true; sync.lastErr=null; sync.conflicts++;
+      const n=mergeRemote(remote);
+      if(sync.conflicts<=3){ sync.pending=true; } else { sync.conflicts=0; toast('Could not save: another device keeps writing. Reload and try again.'); }
+      if(n===0) sync.pending=false;
+    } else if(!r.ok){ throw new Error('HTTP '+r.status); }
+    else {
+      const j=await r.json(); S.rev=j.rev; S.updatedAt=j.updatedAt; sync.online=true; sync.lastErr=null; sync.conflicts=0; sync.obsQueued=0;
+      if(Array.isArray(j.observed)){ const changed=j.observed.length!==S.observed.length; S.observed=j.observed; S.obsDeleted=j.obsDeleted||{}; if(changed){ renderObserved(); renderSession(); renderShuffle(); } }
+      markSynced(doc); saveLocal();
+    }
+  }catch(e){ sync.online=false; sync.lastErr=e.message; saveLocal(); }
   finally{ sync.inFlight=false; setSync(); if(sync.pending) flushSync(); }
 }
-// One tap, one POST: the entry lands on the server before the debounced PUT, and PUT unions `observed` anyway.
-function postObserved(o){ if(!API) return; apiFetch('/observed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o),keepalive:true}).then(r=>r.json()).then(j=>{ if(j.rev) S.rev=Math.max(S.rev||0,j.rev); }).catch(()=>{}); }
-function deleteObserved(body){ if(!API) return Promise.resolve(); return apiFetch('/observed',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).catch(()=>{}); }
-function adoptServerState(s){ S=applyPrefs(normalize(s)); saveLocal(); syncHeader(); applyTheme(); if(S.ui.mode) setMode(S.ui.mode,true); renderAll(); }
+// A rev adopted from a POST/DELETE reply is only trusted when it is exactly the next one; a bigger jump means
+// another device wrote in between, and leaving our rev stale makes the next PUT 409 and merge instead of clobber.
+function adoptRev(j){ if(j&&j.rev===(S.rev||0)+1){ S.rev=j.rev; S.updatedAt=j.updatedAt||S.updatedAt; } sync.online=true; sync.lastErr=null; setSync(); }
+// One tap, one POST. No whole-document PUT: the log is the server's to merge, and a PUT from a device that is
+// behind would carry its stale copy of everything else.
+function postObserved(o){ if(!API) return; apiFetch('/observed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o),keepalive:true}).then(r=>r.json()).then(adoptRev).catch(e=>{ sync.obsQueued++; sync.online=false; sync.lastErr=e.message; setSync(); }); }
+function deleteObserved(body){ if(!API) return Promise.resolve(); return apiFetch('/observed',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json()).then(adoptRev).catch(e=>{ sync.online=false; sync.lastErr=e.message; setSync(); }); }
 async function loadRemote(){
   if(!API) { setSync(); return; }
   try{
     const r=await apiFetch('/state');
-    if(r.status===204){ sync.online=true; S.dirty=true; scheduleSync(); return; }   // fresh server: seed it from this browser
+    if(r.status===204){ sync.online=true; synced={}; scheduleSync(); return; }   // fresh server: seed it from this browser
     const remote=await r.json(); sync.online=true; sync.lastErr=null;
-    const localRev=S.rev||0;
-    if(S.dirty&&localRev>=(remote.rev||0)){ scheduleSync(); return; }               // offline edits, nobody else wrote: push ours
-    if(S.dirty&&localRev<(remote.rev||0)){ const mine=S.observed.slice(); adoptServerState(remote); const have=new Set(S.observed.map(obsKey)); let n=0; for(const o of mine) if(!have.has(obsKey(o))){ S.observed.push(o); n++; } if(n) scheduleSync(); toast(`Server had newer state (rev ${remote.rev}); offline edits dropped${n?`, ${n} DE logs kept`:''}.`); return; }
-    adoptServerState(remote);
+    if(mergeRemote(remote)>0) scheduleSync();                                        // edits made while offline go back up
   }catch(e){ sync.online=false; sync.lastErr=e.message; }
   setSync();
 }
 const obsKey=o=>[o.lvl,o.slot,o.quality,o.mat,o.qty,o.ts].join('|');
 async function pollHealth(){
-  if(!API||document.hidden) return;
+  if(!API||document.hidden||sync.inFlight) return;
   try{ const r=await apiFetch('/health'); const h=await r.json(); const was=sync.online; sync.online=true; sync.lastErr=null;
-    if(!was&&(S.dirty||sync.pending)) { flushSync(); return; }
-    if(!sync.pending&&!sync.inFlight&&h.rev>(S.rev||0)&&!S.dirty){ const s=await (await apiFetch('/state')).json(); adoptServerState(s); toast('Updated from another device.'); }
+    if(h.rev>(S.rev||0)){ const s=await (await apiFetch('/state')).json(); const n=mergeRemote(s); if(n||sync.obsQueued) scheduleSync(); else toast('Updated from another device.'); }
+    else if(!was&&(changedPaths().length||sync.obsQueued||sync.pending)) scheduleSync();
   }catch(e){ sync.online=false; sync.lastErr=e.message; }
   setSync();
 }
@@ -675,7 +716,7 @@ function renderSession(){
   $('sMats').innerHTML=opts.map(m=>`<button data-mat="${m}" aria-pressed="${sessionSel.mat===m}">${esc(matName(m))}</button>`).join('');
   $('sMats').querySelectorAll('button').forEach(x=>x.addEventListener('click',()=>{ sessionSel.mat=x.dataset.mat; renderSession(); }));
   $('sQty').innerHTML=[1,2,3,4,5,6].map(q=>`<button data-q="${q}">+${q}</button>`).join('');
-  $('sQty').querySelectorAll('button').forEach(x=>x.addEventListener('click',()=>{ if(!sessionSel.mat) return; const o={lvl,slot:sessionSel.slot,quality:sessionSel.quality,mat:sessionSel.mat,qty:+x.dataset.q,ts:Date.now()}; S.observed.push(o); postObserved(o); save(); renderAll(); toast(`Logged ${x.dataset.q} ${matName(sessionSel.mat)}`); }));
+  $('sQty').querySelectorAll('button').forEach(x=>x.addEventListener('click',()=>{ if(!sessionSel.mat) return; const o={lvl,slot:sessionSel.slot,quality:sessionSel.quality,mat:sessionSel.mat,qty:+x.dataset.q,ts:Date.now()}; S.observed.push(o); postObserved(o); saveLocal(); renderAll(); toast(`Logged ${x.dataset.q} ${matName(sessionSel.mat)}`); }));
   const last=S.observed[S.observed.length-1]; $('sLast').textContent=last?`Last: lvl ${last.lvl} ${last.slot} → ${last.qty} ${matName(last.mat)} · ${S.observed.length} logged`:'Nothing logged yet';
 }
 
@@ -723,7 +764,7 @@ $('copyCache').addEventListener('click',()=>copyText(cacheBlock(fillMacros(S.ui.
 $('checkReset').addEventListener('click',()=>{ delete S.checks[S.ui.pack]; save(); renderSession(); });
 $('lvlDown').addEventListener('click',()=>{ $('sLvl').value=Math.max(1,+$('sLvl').value-1); renderSession(); }); $('lvlUp').addEventListener('click',()=>{ $('sLvl').value=Math.min(60,+$('sLvl').value+1); renderSession(); }); $('sLvl').addEventListener('input',renderSession);
 for(const [gid,key] of [['sSlot','slot'],['sQual','quality']]) $(gid).querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ sessionSel[key]=b.dataset.v; $(gid).querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); renderSession(); }));
-$('sUndo').addEventListener('click',()=>{ const o=S.observed.pop(); if(!o) return; deleteObserved(o).then(()=>save()); renderAll(); });
+$('sUndo').addEventListener('click',()=>{ const o=S.observed.pop(); if(!o) return; deleteObserved(o); saveLocal(); renderAll(); });
 $('obsMin').value=S.ui.obsMin||20; $('obsMin').addEventListener('change',e=>{ S.ui.obsMin=+e.target.value||20; save(); renderAll(); });
 $('dataApply').addEventListener('click',applyData);
 $('dataExport').addEventListener('click',()=>copyText(JSON.stringify(S,null,1),'Export copied'));

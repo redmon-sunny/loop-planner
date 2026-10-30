@@ -31,8 +31,10 @@ loop-planner/
 
 **Local file:** open `index.html`. Seed data only; the `data/` loader is skipped on `file://`.
 
-**Homelab:** `docker compose up -d`, then `http://<host>:8087/`. Two containers: nginx serving the page and
-`data/`, and the state API (see below) behind `/api/`. Keep it off the public internet — there is no auth.
+**Homelab:** once, `install -d -o "$(id -u)" -g "$(id -g)" state` (Docker would otherwise create it root-owned) and,
+if your uid isn't 1000, `LP_UID=$(id -u)` and `LP_GID=$(id -g)` in `.env`. Then `docker compose up -d` and
+`http://<host>:8087/`. Two containers: nginx serving the page and `data/`, and the state API (see below) behind
+`/api/`, running as your uid. Keep it off the public internet — there is no auth.
 
 **Without Docker:** `python backend/state_api.py --static .` serves the page, `data/` and the API on :8088.
 
@@ -60,20 +62,26 @@ and shows a badge in the header:
 | `local file` | opened from disk: localStorage only, nothing shared |
 
 Rules:
-- Whole-document **last write wins**, except the observed DE log, which the server **unions** by (lvl, slot, quality, mat, qty, ts).
-  A tap on the iPad and a save from the desk a second later both survive. Undo leaves a tombstone so a device
-  still holding the entry can't re-add it; logging the same entry again on purpose clears the tombstone.
-- Every save returns the merged log, so the writer adopts what other devices added or removed. Open pages also poll
-  `/api/health` every 15 s and pull the document when another device has written since (toast: "Updated from another device").
+- Every PUT carries `If-Match: <rev>`, the rev the page loaded. If another device wrote since, the server answers
+  **409 with its current document** and writes nothing; the page takes that document, re-applies **only the paths it
+  changed itself** (plain objects split two levels deep: `chars.Main.tail`, `prices.linen`, `ui.pack`, `checks.de.0`;
+  arrays whole) and PUTs again, up to three times. The iPad bumping Enchanting and the desk bumping Tailoring on
+  the same character are two paths and both land; the same path edited on both is last-write-wins at that path.
+  A save with nothing changed in the shared document (a mode or theme switch) sends no PUT at all.
+- The observed DE log never rides a document PUT from the page: a tap is one `POST`, an undo one `DELETE`. The
+  server still **unions** `observed` on every PUT, keyed by (lvl, slot, quality, mat, qty, ts), and an undo leaves a
+  tombstone so a device still holding the entry can't re-add it; logging the same entry again on purpose clears it.
+- Every successful PUT returns the merged log, so the writer adopts what other devices added or removed. Open pages
+  also poll `/api/health` every 15 s and merge the document when another device has written since.
 - Mode and theme are per device, not in the shared document: the iPad stays in Session while the desk stays in Plan.
-- Offline edits: if nothing else wrote meanwhile they are pushed as-is; if the server moved on, the server wins and
-  only your offline DE taps are merged back (the page says so in a toast).
+- Offline: edits and taps stay in this browser; when the API answers again the page merges the server's document,
+  re-applies its own changed paths, unions its queued taps, and pushes.
 - A data file that no script has written yet (`data/recipes.json` before the first seed) answers 204, not 404, so
   the browser console stays clean.
 
 Endpoints, all JSON, all under `/api/`: `GET health`, `GET state` (204 until the first write), `PUT state`,
-`POST observed` (one entry or a list), `DELETE observed` (one entry, or `{"all":true}`). Stdlib Python, atomic
-writes, one lock. `python backend/test_state_api.py` runs the unit tests; `python backend/headless_check.py`
+`POST observed` (one entry or a list), `DELETE observed` (one entry, or `{"all":true}`). Same-origin only (no CORS
+headers; the page reaches it through nginx). Stdlib Python, atomic writes, one lock. `python backend/test_state_api.py` runs the unit tests; `python backend/headless_check.py`
 (needs Playwright, dev only) drives two browsers through the sync, offline and layout checks.
 
 ## Backend

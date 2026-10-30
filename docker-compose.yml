@@ -19,6 +19,9 @@ services:
     container_name: loop-planner-state
     restart: unless-stopped
     working_dir: /app
+    # runs as your uid so state/state.json is yours, not root's; LP_UID/LP_GID come from .env (defaults 1000).
+    # Create the dir first or Docker makes it root-owned:  install -d -o "$(id -u)" -g "$(id -g)" state
+    user: "${LP_UID:-1000}:${LP_GID:-1000}"
     command: ["python", "-u", "state_api.py", "--dir", "/state", "--port", "8088"]
     environment:
       PYTHONDONTWRITEBYTECODE: "1"

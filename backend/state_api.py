@@ -8,9 +8,11 @@ is unreachable the page falls back to the browser's localStorage and shows "offl
 Endpoints (all under /api/ so nginx can proxy one prefix):
   GET  /api/health           {ok, rev, updatedAt, observed, bytes}
   GET  /api/state            the document; 204 (no content) until the first PUT
-  PUT  /api/state            replace the document (last write wins), except `observed`,
-                             which is unioned with what is stored so a tap logged on one
-                             device is never clobbered by a save from another
+  PUT  /api/state            replace the document. Send `If-Match: <rev>` (the rev you loaded);
+                             if the server has moved on you get 409 with the current document,
+                             re-apply your own changes to it and PUT again. `observed` is always
+                             unioned with what is stored, so a tap logged on one device is
+                             never clobbered by a save from another
   POST /api/observed         append one entry or a list; deduped on (lvl,slot,quality,mat,qty,ts)
   DELETE /api/observed       remove one entry (undo) or everything with {"all": true} (reset)
 
@@ -24,8 +26,8 @@ Run under Docker (see docker-compose.yml) or by hand:
 Dev mode, no nginx: also serve index.html and data/ from the repo root on the same port:
   python backend/state_api.py --static . --port 8088    # then open http://localhost:8088/
 
-Stdlib only. No auth: LAN only, one user. CORS is wide open so the iPad can hit the API
-on a different host:port if you ever serve the page from somewhere else.
+Stdlib only. No auth: LAN only, one user. Same-origin only: the page reaches it through
+nginx's /api/ proxy (or --static), so no CORS headers are sent.
 """
 import argparse, json, os, sys, threading, time
 from datetime import datetime, timezone
@@ -83,11 +85,16 @@ class Store:
                     out[k] = max(out.get(k, 0), int(ts))
         return out
 
-    def put(self, incoming):
+    def put(self, incoming, if_match=None):
+        """Returns (conflict, result). With if_match set and not equal to the stored rev, nothing is
+        written and result is the stored document (rev 0 and empty when there is none yet)."""
         if not isinstance(incoming, dict):
             raise ValueError('state must be a JSON object')
         with self.lock:
             stored = self._read() or {}
+            if if_match is not None and int(if_match) != int(stored.get('rev') or 0):
+                cur = dict(stored); cur.setdefault('rev', 0)
+                return True, cur
             doc = dict(incoming)
             # union the observed log so a tap on one device survives a save from another;
             # tombstones keep an undo from being resurrected by a device that still holds the entry
@@ -108,7 +115,7 @@ class Store:
             doc['updatedAt'] = now_iso()
             self._write(doc)
             # the merged log goes back so the writer can adopt what other devices added or removed
-            return {'rev': doc['rev'], 'updatedAt': doc['updatedAt'], 'observed': merged, 'obsDeleted': tomb}
+            return False, {'rev': doc['rev'], 'updatedAt': doc['updatedAt'], 'observed': merged, 'obsDeleted': tomb}
 
     def append_observed(self, entries):
         if isinstance(entries, dict):
@@ -187,18 +194,12 @@ def make_handler(store, static_dir):
         protocol_version = 'HTTP/1.1'
 
         # ---- helpers ----
-        def _cors(self):
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.send_header('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS')
-            self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-
         def _json(self, code, obj):
             body = json.dumps(obj, separators=(',', ':')).encode('utf-8')
             self.send_response(code)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(body)))
             self.send_header('Cache-Control', 'no-store')
-            self._cors()
             self.end_headers()
             if self.command != 'HEAD':
                 self.wfile.write(body)
@@ -239,12 +240,6 @@ def make_handler(store, static_dir):
                 self.wfile.write(data)
 
         # ---- verbs ----
-        def do_OPTIONS(self):
-            self.send_response(204)
-            self._cors()
-            self.send_header('Content-Length', '0')
-            self.end_headers()
-
         def do_GET(self):
             path = urlsplit(self.path).path
             if path == '/api/health':
@@ -253,7 +248,7 @@ def make_handler(store, static_dir):
                 doc = store.get()
                 if doc is not None:
                     return self._json(200, doc)
-                self.send_response(204); self._cors(); self.send_header('Cache-Control', 'no-store'); self.send_header('Content-Length', '0'); self.end_headers(); return
+                self.send_response(204); self.send_header('Cache-Control', 'no-store'); self.send_header('Content-Length', '0'); self.end_headers(); return
             if path.startswith('/api/'):
                 return self._json(404, {'error': 'not found'})
             return self._static(path)
@@ -265,7 +260,13 @@ def make_handler(store, static_dir):
             if path != '/api/state':
                 return self._json(404, {'error': 'not found'})
             try:
-                return self._json(200, store.put(self._body()))
+                im = self.headers.get('If-Match')
+                if im is not None:
+                    im = im.strip().strip('"')
+                    if not im.isdigit():
+                        return self._json(400, {'error': 'If-Match must be the integer rev you loaded'})
+                conflict, result = store.put(self._body(), im)
+                return self._json(409 if conflict else 200, result)
             except (ValueError, json.JSONDecodeError) as e:
                 return self._json(400, {'error': str(e)})
 

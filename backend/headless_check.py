@@ -7,7 +7,8 @@
 What it proves (acceptance 1, 4, 7 of the brief):
   - the page boots with no console errors at 400 / 820 / 1366 px, both themes, both modes, no horizontal scroll
   - two browsers (separate localStorage) share one document through the API within one reload
-  - a DE tap on one device shows in the other's Observed ledger
+  - a stale browser's save gets 409, merges, and keeps the other browser's edit (no clobber)
+  - a DE tap is one POST (rev +1, nothing else in the document changes) and shows in the other's ledger
   - when the API goes away the badge says offline, edits stay local, and they are pushed when it returns
   - opened from file:// the page runs on localStorage alone and says so
 """
@@ -69,25 +70,30 @@ def main():
             print('A at 400px:', badge(A))
             check(badge(A) == 'synced · rev 1', 'fresh server seeded from the first browser (rev 1)')
             check(not A.locator('#session').is_hidden(), 'session mode opens by default on a narrow touch screen')
-            A.fill('#skEnch', '72'); A.dispatch_event('#skEnch', 'input')
-            A.wait_for_function("document.querySelector('#syncBadge').textContent==='synced · rev 2'", timeout=5000)
-            check(badge(A) == 'synced · rev 2', 'typing a skill pushes a new rev')
-            doc = json.load(urllib.request.urlopen(base + 'api/state'))
-            check(doc['chars'][doc['activeChar']]['ench'] == 72, 'server holds the typed skill')
-            check('mode' not in doc['ui'] and 'theme' not in doc['ui'], 'mode and theme stay out of the shared doc')
-
-            # ---- B: desktop, separate storage, sees A's state ----
+            # ---- B: desktop, separate storage, loads the same rev 1 ----
             ctxB = browser.new_context(viewport={'width': 1366, 'height': 900})
             B = ctxB.new_page(); watch(B, 'B')
             B.goto(base); B.wait_for_function("document.querySelector('#syncBadge').textContent.startsWith('synced')", timeout=5000)
-            check(B.input_value('#skEnch') == '72', 'second browser loads the first browser\'s skill from the API')
             check(not B.locator('#plan').is_hidden(), 'plan mode opens by default on desktop')
-            # B logs a DE tap from the session view
-            B.click('#modeSession'); B.click('#sQty button[data-q="4"]')
-            B.wait_for_function("document.querySelector('#syncBadge').textContent.startsWith('synced')", timeout=5000)
-            time.sleep(0.6)
+            # A edits Enchanting -> rev 2. B still holds rev 1.
+            A.fill('#skEnch', '60'); A.dispatch_event('#skEnch', 'input')
+            A.wait_for_function("document.querySelector('#syncBadge').textContent==='synced · rev 2'", timeout=5000)
+            check(badge(A) == 'synced · rev 2', 'typing a skill pushes a new rev')
             doc = json.load(urllib.request.urlopen(base + 'api/state'))
-            check(len(doc['observed']) == 1 and doc['observed'][0]['qty'] == 4, 'DE tap reaches the server (POST + PUT union)')
+            check(doc['chars'][doc['activeChar']]['ench'] == 60, 'server holds the typed skill')
+            check('mode' not in doc['ui'] and 'theme' not in doc['ui'], 'mode and theme stay out of the shared doc')
+            # the clobber case: stale B edits Tailoring. Its PUT must 409, merge, and keep A's 72.
+            B.fill('#skTail', '101'); B.dispatch_event('#skTail', 'input')
+            B.wait_for_function("document.querySelector('#syncBadge').textContent==='synced · rev 3'", timeout=5000)
+            doc = json.load(urllib.request.urlopen(base + 'api/state'))
+            check(doc['chars']['Main'] == {'tail': 101, 'ench': 60}, 'stale save 409s, merges, keeps the other device\'s edit (rev 3)')
+            check(B.input_value('#skEnch') == '60', 'B adopted A\'s edit during the merge')
+            # B logs a DE tap: one POST, rev +1, nothing else in the document moves
+            B.click('#modeSession'); B.click('#sQty button[data-q="4"]')
+            B.wait_for_function("document.querySelector('#syncBadge').textContent==='synced · rev 4'", timeout=5000)
+            doc = json.load(urllib.request.urlopen(base + 'api/state'))
+            check(doc['rev'] == 4 and len(doc['observed']) == 1 and doc['observed'][0]['qty'] == 4, 'DE tap is a single POST (rev 4, one entry)')
+            check(doc['chars']['Main'] == {'tail': 101, 'ench': 60}, 'the tap carried no document PUT')
             # A pulls it on its next health poll (simulate the 15 s timer)
             A.evaluate('pollHealth()'); A.wait_for_function("S.observed.length===1", timeout=5000)
             A.click('#modePlan'); A.click('nav.tabs button[data-tab="observed"]')
@@ -111,19 +117,27 @@ def main():
                         B.screenshot(path=os.path.join(a.shots, f'{mode}-{theme}-{w}.png'), full_page=(w != 1366))
             B.select_option('#theme', 'auto'); B.set_viewport_size({'width': 1366, 'height': 900})
 
-            # ---- offline: kill the API, edit, bring it back ----
+            # ---- offline: kill the API, B edits and taps, A edits once it is back, then B reconnects ----
             api.terminate(); api.wait(5)
-            B.click('#modePlan'); B.fill('#skTail', '101'); B.dispatch_event('#skTail', 'input')
+            B.click('#modePlan'); B.fill('#skTail', '102'); B.dispatch_event('#skTail', 'input')
             B.wait_for_function("document.querySelector('#syncBadge').textContent==='offline'", timeout=8000)
             check(badge(B) == 'offline', 'badge flips to offline when the API is down')
-            check(B.evaluate("JSON.parse(localStorage.getItem('wowf-loop-planner-v2')).chars.Main.tail") == 101, 'offline edit kept in localStorage')
+            B.click('#modeSession'); B.click('#sQty button[data-q="2"]'); B.wait_for_timeout(300)
+            check(B.evaluate("JSON.parse(localStorage.getItem('wowf-loop-planner-v2')).chars.Main.tail") == 102, 'offline edit kept in localStorage')
+            check(B.evaluate("S.observed.length") == 1, 'offline tap kept locally')
             api = start_api(state_dir, port)
-            B.evaluate('pollHealth()'); B.wait_for_function("document.querySelector('#syncBadge').textContent.startsWith('synced')", timeout=8000)
+            A.evaluate('pollHealth()'); A.wait_for_function("document.querySelector('#syncBadge').textContent.startsWith('synced')", timeout=8000)
+            A.fill('#skEnch', '80'); A.dispatch_event('#skEnch', 'input')
+            A.wait_for_function("document.querySelector('#syncBadge').textContent.startsWith('synced') && !sync.pending", timeout=8000)
+            B.evaluate('pollHealth()'); B.wait_for_function("document.querySelector('#syncBadge').textContent.startsWith('synced') && !sync.pending && !sync.inFlight", timeout=8000)
+            time.sleep(0.5)
             doc = json.load(urllib.request.urlopen(base + 'api/state'))
-            check(doc['chars']['Main']['tail'] == 101, 'offline edit pushed when the API returns')
+            check(doc['chars']['Main'] == {'tail': 102, 'ench': 80}, 'reconnect merges: B\'s offline edit and A\'s meanwhile edit both land')
+            check(len(doc['observed']) == 1 and doc['observed'][0]['qty'] == 2, 'offline tap pushed on reconnect')
+            check(B.input_value('#skEnch') == '80', 'B shows A\'s meanwhile edit')
             # a reload in the other browser sees it (acceptance #1: same state within one reload)
             A.reload(); A.wait_for_function("document.querySelector('#syncBadge').textContent.startsWith('synced')", timeout=5000)
-            check(A.input_value('#skTail') == '101', 'other browser sees the change after one reload')
+            check(A.input_value('#skTail') == '102', 'other browser sees the change after one reload')
 
             # ---- file:// still works, on localStorage alone ----
             ctxF = browser.new_context(viewport={'width': 1366, 'height': 900})
@@ -136,7 +150,8 @@ def main():
         api.terminate(); api.wait(5); shutil.rmtree(state_dir, ignore_errors=True)
 
     for name, errs in errors.items():
-        real = [e for e in errs if 'fonts.g' not in e and 'ERR_' not in e]
+        # a 409 is logged by Chromium as a failed resource; it is the conflict path doing its job, not a page error
+        real = [e for e in errs if 'fonts.g' not in e and 'ERR_' not in e and '409' not in e]
         check(not real, f'no console errors in {name}' + (f': {real[:3]}' if real else ''))
     print(f'\nscreenshots in {a.shots}')
     print('\nRESULT:', 'PASS' if not fails else f'FAIL ({len(fails)})')
