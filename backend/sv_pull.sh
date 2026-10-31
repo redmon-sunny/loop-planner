@@ -31,8 +31,11 @@ if ! $SSH "$SV_HOST" 'exit 0' 2>/dev/null; then
     exit 0
 fi
 
-# remote mtimes in one call (PowerShell on the desktop; epoch seconds, one line per file: "name mtime" or "name -")
-remote_list=$($SSH "$SV_HOST" "powershell -NoProfile -Command \"\$d='$SV_DIR'; foreach(\$f in '$SV_FILES'.Split(' ')){ \$p=Join-Path \$d \$f; if(Test-Path \$p){ '{0} {1}' -f \$f,[int64](Get-Date (Get-Item \$p).LastWriteTimeUtc -UFormat %s) } else { '{0} -' -f \$f } }\"") || { log "ERROR listing $SV_DIR on $SV_HOST"; exit 1; }
+# remote mtimes in one call. The PowerShell is sent base64 (-EncodedCommand, UTF-16LE) so neither sshd's default
+# shell nor ours can eat the $ signs. One line per file: "name <epoch>" or "name -".
+ps_script="\$d='$SV_DIR'; foreach(\$f in '$SV_FILES'.Split(' ')){ \$p=Join-Path \$d \$f; if(Test-Path \$p){ '{0} {1}' -f \$f,[int64][double]::Parse((Get-Date (Get-Item \$p).LastWriteTimeUtc -UFormat %s)) } else { '{0} -' -f \$f } }"
+encoded=$(printf '%s' "$ps_script" | iconv -f UTF-8 -t UTF-16LE | base64 -w0)
+remote_list=$($SSH "$SV_HOST" "powershell -NoProfile -NonInteractive -EncodedCommand $encoded") || { log "ERROR listing $SV_DIR on $SV_HOST"; exit 1; }
 
 pulled=""
 echo "$remote_list" | tr -d '\r' | while read -r name mtime; do
@@ -41,7 +44,7 @@ echo "$remote_list" | tr -d '\r' | while read -r name mtime; do
     local_mtime=0
     [ -f "$DEST/$name" ] && local_mtime=$(stat -c %Y "$DEST/$name")
     if [ "$mtime" -gt "$local_mtime" ]; then
-        if scp -p -q -o BatchMode=yes "$SV_HOST:\"$SV_DIR/$name\"" "$DEST/$name.tmp" && [ -s "$DEST/$name.tmp" ]; then
+        if scp -p -q -o BatchMode=yes "$SV_HOST:'$SV_DIR/$name'" "$DEST/$name.tmp" && [ -s "$DEST/$name.tmp" ]; then
             mv "$DEST/$name.tmp" "$DEST/$name"
             log "$name: pulled ($(wc -c < "$DEST/$name") bytes, scan $(date -u -d @"$mtime" +%FT%TZ))"
             echo "$name" >> "$DEST/.pulled"
