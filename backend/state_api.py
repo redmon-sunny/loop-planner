@@ -29,7 +29,7 @@ Dev mode, no nginx: also serve index.html and data/ from the repo root on the sa
 Stdlib only. No auth: LAN only, one user. Same-origin only: the page reaches it through
 nginx's /api/ proxy (or --static), so no CORS headers are sent.
 """
-import argparse, json, os, sys, threading, time
+import argparse, json, os, sys, threading, time, urllib.parse
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
@@ -214,16 +214,22 @@ def make_handler(store, static_dir):
             return json.loads(raw.decode('utf-8'))
 
         def _static(self, path):
+            """Dev mode only. Serves exactly two things: /index.html and *.json files directly under data/ (never
+            data/raw/). The path is refused if it carries any percent-encoding, '..', backslash, NUL or '//', and
+            again after resolution, which must land in static_dir/data/ itself, so a symlink out is refused too."""
             if static_dir is None:
                 return self._json(404, {'error': 'not found'})
-            if path in ('/', '/index.html'):
-                rel = 'index.html'
-            elif path.startswith('/data/') and not path.startswith('/data/raw/'):
-                rel = path.lstrip('/')
-            else:
+            raw = urllib.parse.unquote(path)
+            if '%' in path or any(bad in raw for bad in ('..', '\\', '\x00', '//')):   # nothing we serve needs encoding
                 return self._json(404, {'error': 'not found'})
-            full = os.path.realpath(os.path.join(static_dir, rel))
-            if not full.startswith(static_dir + os.sep):
+            if raw in ('/', '/index.html'):
+                full, rel = os.path.join(static_dir, 'index.html'), 'index.html'
+            elif raw.startswith('/data/') and raw.count('/') == 2 and raw.endswith('.json'):
+                rel = raw[1:]
+                full = os.path.realpath(os.path.join(static_dir, rel))
+                if os.path.dirname(full) != os.path.realpath(os.path.join(static_dir, 'data')):
+                    return self._json(404, {'error': 'not found'})
+            else:
                 return self._json(404, {'error': 'not found'})
             if not os.path.isfile(full):
                 if rel.startswith('data/'):   # same as nginx: a data file that isn't there yet is 204, not an error

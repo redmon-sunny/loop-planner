@@ -127,6 +127,35 @@ class StateApiTest(unittest.TestCase):
             code, _, _ = call(self.base + bad)
             self.assertEqual(code, 404, bad)
 
+    def test_06a_static_traversal(self):
+        # the static dir holds a secret beside index.html and data/ (like .env in the repo root); nothing may reach it
+        with open(os.path.join(self.static, '.env'), 'w') as f:
+            f.write('FDB_KEY=secret')
+        os.makedirs(os.path.join(self.static, 'data', 'sub'), exist_ok=True)
+        with open(os.path.join(self.static, 'data', 'sub', 'x.json'), 'w') as f:
+            f.write('{}')
+        try:
+            os.symlink(os.path.join(self.static, '.env'), os.path.join(self.static, 'data', 'link.json'))
+        except OSError:
+            pass
+        import http.client
+        bad = ['/data/../.env', '/data/..%2F.env', '/data/%2e%2e/.env', '/data/..%2f..%2f.env', '/../.env', '/.env',
+               '/data//../.env', '/data/\\..\\.env', '/data/sub/x.json', '/data/raw/secret.json', '/data/link.json',
+               '/index.html/../.env', '/data/.env', '/data/prices.json%00.env', '/data', '/data/']
+        for p in bad:
+            # raw request so the client cannot normalise the path for us
+            c = http.client.HTTPConnection('127.0.0.1', self.port, timeout=5)
+            c.putrequest('GET', p, skip_host=True); c.putheader('Host', 'x'); c.endheaders()
+            r = c.getresponse(); body = r.read(); c.close()
+            self.assertIn(r.status, (204, 404), f'{p} -> {r.status}')
+            self.assertNotIn(b'secret', body, p)
+            self.assertNotIn(b'FDB_KEY', body, p)
+        # the two legitimate shapes still work
+        with urllib.request.urlopen(self.base + '/data/prices.json', timeout=5) as r:
+            self.assertEqual(r.status, 200)
+        with urllib.request.urlopen(self.base + '/index.html', timeout=5) as r:
+            self.assertEqual(r.status, 200)
+
     def test_06b_delete_observed(self):
         e = {'lvl': 30, 'slot': 'armor', 'quality': 'green', 'mat': 'soul_dust', 'qty': 3, 'ts': 3000}
         call(self.base + '/api/observed', 'POST', e)

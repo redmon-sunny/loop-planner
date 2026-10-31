@@ -82,6 +82,9 @@ Rules:
 - A data file that no script has written yet (`data/recipes.json` before the first seed) answers 204, not 404, so
   the browser console stays clean.
 
+Dev mode (`--static`) serves only `/index.html` and `*.json` directly under `data/`; any `..`, percent-encoding,
+backslash or symlink out of `data/` is refused (unit-tested). Not a substitute for nginx on a shared host.
+
 Endpoints, all JSON, all under `/api/`: `GET health`, `GET state` (204 until the first write), `PUT state`,
 `POST observed` (one entry or a list), `DELETE observed` (one entry, or `{"all":true}`). Same-origin only (no CORS
 headers; the page reaches it through nginx). Stdlib Python, atomic writes, one lock. `python backend/test_state_api.py` runs the unit tests; `python backend/headless_check.py`

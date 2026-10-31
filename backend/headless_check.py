@@ -167,6 +167,34 @@ def main():
             check('ilvl 21–25 weapon green' in B.locator('#sBracket').inner_text() and B.locator('#sMats button').first.inner_text() == 'Lesser Astral Essence', 'DE logger offers the row\'s mats for that item level and slot')
             B.click('#sSlot button[data-v="armor"]')
 
+            # ---- stage 2c: review items B1, B2, B4, B5, B8 on the seed tables (file:// has no recipes.json) ----
+            ctxR = browser.new_context(viewport={'width': 1366, 'height': 900})
+            R = ctxR.new_page(); watch(R, 'review')
+            R.goto('file://' + os.path.join(ROOT, 'index.html')); R.wait_for_timeout(400)
+            # B1: Tailoring 60 / Enchanting 1 on seed data used to pick Novice Arcanist's Sash (BoP, unpriced potions)
+            R.fill('#skTail', '60'); R.dispatch_event('#skTail', 'input'); R.fill('#skEnch', '1'); R.dispatch_event('#skEnch', 'input')
+            R.click('#modeSession'); stop = R.locator('#stopOut').inner_text()
+            check("Arcanist" not in stop.split('skipped')[0] and 'Linen Bag' in stop, 'B1: Craft now skips the BoP/unpriced sash and names Linen Bag')
+            # make the sash the cheapest thing on paper (its potions priced, linen nearly free): it must still be skipped for BoP, and say so
+            R.evaluate("S.prices.minor_mana_pot=1; S.prices.linen=1; S.mats.find(m=>m.id==='coarse_thread').vendor=5000; S.mats.find(m=>m.id==='fine_thread').vendor=1; renderAll()"); stop = R.locator('#stopOut').inner_text()
+            check('Arcanist' not in stop.split('skipped')[0] and 'skipped:' in stop and 'Arcanist' in stop.split('skipped')[1] and 'BoP' in stop, 'B1: a BoP recipe that would win on net/pt is skipped and the reason shown')
+            R.evaluate("delete S.prices.minor_mana_pot; S.prices.linen=300; S.mats.find(m=>m.id==='coarse_thread').vendor=10; S.mats.find(m=>m.id==='fine_thread').vendor=100; renderAll()")
+            # B2: a custom recipe with an unknown mat must not look free or become Craft now
+            R.evaluate("S.tailoring.push({id:'ghost',name:'Ghost Robe',skill:[1,200,250,300],inputs:[{mat:'nonexistent',qty:1}],output:{quality:'green',reqLevel:5,itemLevel:10,slot:'armor'},sell:0,custom:true}); renderAll()")
+            stop = R.locator('#stopOut').inner_text()
+            check('Ghost Robe' not in stop.split('skipped')[0], 'B2: unknown-mat recipe is not Craft now')
+            check(R.evaluate("recipeUnpriced(S.tailoring.find(r=>r.id==='ghost')).length") == 1, 'B2: unknown mat id is reported as unpriced')
+            R.click('#modePlan'); R.click('nav.tabs button[data-tab="plan"]'); R.fill('#planTailFrom', '1'); R.fill('#planTailTo', '300'); R.click('#runPlan')
+            check('Ghost Robe' not in R.locator('#planOut').inner_text(), 'B2: solver never picks a recipe with an unknown mat')
+            R.evaluate("S.tailoring.pop(); renderAll()")
+            # B4 / B5
+            check(R.evaluate("[fmt(Infinity), fmt(NaN), fmtShort(Infinity), fmtShort(NaN), fmt(-150)]") == ['—', '—', '—', '—', '−1s 50c'], 'B4: non-finite money renders as a dash')
+            check(R.evaluate("[parseMoney('-5s'), parseMoney('−5s'), parseMoney('5s'), parseMoney('1g 20s')]") == [0, 0, 500, 12000], 'B5: negative money rejected')
+            # B8: three packs, no cloth farm; a stored farm pack is pruned by normalize()
+            check(R.locator('#packBtns button').count() == 3 and 'Cloth' not in R.locator('#packBtns').inner_text(), 'B8: three packs, cloth-farm gone')
+            check(R.evaluate("const s=normalize(Object.assign(freshState(),{packs:{farm:{name:'x',slots:[],labels:[],check:[]}},ui:{pack:'farm'}})); [!!s.packs.farm, s.ui.pack]") == [False, 'de'], 'B8: a stored farm pack is pruned and the selection falls back')
+            ctxR.close()
+
             # ---- file:// still works, on localStorage alone ----
             ctxF = browser.new_context(viewport={'width': 1366, 'height': 900})
             F = ctxF.new_page(); watch(F, 'file')
@@ -180,6 +208,7 @@ def main():
         if had_rec:
             os.replace(rec_path + '.bak', rec_path)
 
+    errors.pop('review', None) if not [e for e in errors.get('review', []) if 'ERR_' not in e] else None
     for name, errs in errors.items():
         # a 409 is logged by Chromium as a failed resource; it is the conflict path doing its job, not a page error
         real = [e for e in errs if 'fonts.g' not in e and 'ERR_' not in e and '409' not in e]

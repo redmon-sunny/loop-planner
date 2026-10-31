@@ -393,10 +393,6 @@ const PACKS_DEFAULT={
   slots:['#showtooltip\n/cast {ENCH1}\n/use {SLOT1}','/click StaticPopup1Button1','#showtooltip\n/cast {ENCH2}\n/use {SLOT2}',DE_COUNT_MACRO,'/cast Disenchant\n/use 4 1','/cast Tailoring','/cast Enchanting','/run C_Container.SortBags()'],
   labels:['{ENCH1} ({ENCH1_CPP}/pt)','Confirm popup','{ENCH2} ({ENCH2_CPP}/pt)','Count greens','Disenchant bag 4 · 1','Open Tailoring','Open Enchanting','Sort bags'],
   check:['Trainer first: new ranks if skill allows','Tailoring window: Create All on what the bag holds','LB+A through the greens','A until the next floor ({FLOOR}) or mats run out','Bags and spare enchants to the group mailbox']},
- farm:{name:'Cloth farm (Affliction)',note:'For the key-mapping fallback only; in native gamepad mode these are your action bars. Humanoids drop cloth; Cannibalize their corpses.',
-  slots:['/petattack','#showtooltip\n/cast Corruption','#showtooltip\n/cast Bane of Agony','#showtooltip\n/cast Shoot','#showtooltip\n/cast Drain Life','#showtooltip\n/cast Life Tap','#showtooltip\n/cast Drain Soul','#showtooltip\n/cast Cannibalize'],
-  labels:['Pet attack','Corruption','Bane of Agony','Wand','Drain Life','Life Tap','Drain Soul','Cannibalize'],
-  check:['Pet out, wand equipped, bag 4 empty','One mob at a time until Improved Corruption is 5/5','Loot every humanoid','Vendor grays at the hub; keep every green','Stop when bags are full']},
  ah:{name:'AH + mail',note:'A prints the buyout ceilings into chat so they are on screen beside the AH. LB+B prints what the next floor still needs; LB+X what you can sell.',
   slots:['/run print("{CEILINGS}")','/cast Disenchant\n/use 4 1','/click StaticPopup1Button1',DE_COUNT_MACRO,'/run C_Container.SortBags()','/run print("{NEED}")','/run print("{SURPLUS}")','/stopcasting'],
   labels:['Print buyout ceilings','Disenchant bag 4 · 1','Confirm popup','Count greens','Sort bags','Print shopping list','Print surplus','Cancel cast'],
@@ -415,7 +411,7 @@ function freshState(){
     ui:{theme:'auto',tailValueMode:'de',obsMin:20,planTailTo:150,planEnchTo:150,mode:null,pack:'de'} };
 }
 // normalize: fill any key a stored document lacks (older versions, hand edits, a fresh server)
-function normalize(s){ const f=freshState(); for(const k of Object.keys(f)) if(s[k]===undefined) s[k]=f[k]; for(const k of Object.keys(f.ui)) if(s.ui[k]===undefined) s.ui[k]=f.ui[k]; for(const k of Object.keys(PACKS_DEFAULT)) if(!s.packs[k]) s.packs[k]=clone(PACKS_DEFAULT[k]); if(!s.chars[s.activeChar]) s.activeChar=Object.keys(s.chars)[0]; if(!Array.isArray(s.observed)) s.observed=[]; if(!Array.isArray(s.de)||!s.de.length||s.de[0].results===undefined){ s.de=clone(SEED.de); delete s.ui.loadedDeBuild; } return s; }
+function normalize(s){ const f=freshState(); for(const k of Object.keys(f)) if(s[k]===undefined) s[k]=f[k]; for(const k of Object.keys(f.ui)) if(s.ui[k]===undefined) s.ui[k]=f.ui[k]; for(const k of Object.keys(PACKS_DEFAULT)) if(!s.packs[k]) s.packs[k]=clone(PACKS_DEFAULT[k]); if(s.packs.farm&&!PACKS_DEFAULT.farm){ delete s.packs.farm; delete (s.checks||{}).farm; if(s.ui.pack==='farm') s.ui.pack='de'; } if(!s.chars[s.activeChar]) s.activeChar=Object.keys(s.chars)[0]; if(!Array.isArray(s.observed)) s.observed=[]; if(!Array.isArray(s.de)||!s.de.length||s.de[0].results===undefined){ s.de=clone(SEED.de); delete s.ui.loadedDeBuild; } return s; }
 function loadLocal(){
   try{
     let raw=localStorage.getItem(KEY);
@@ -529,9 +525,9 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1800); }
 async function copyText(text,label){ try{ await navigator.clipboard.writeText(text); toast((label||'Copied')+'.'); }catch(e){ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); toast((label||'Copied')+'.'); }catch(_){ toast('Select and copy by hand: clipboard blocked.'); } setTimeout(()=>ta.remove(),100); } }
-function parseMoney(str){ if(str==null) return 0; str=String(str).trim().toLowerCase(); if(!str) return 0; if(/^[\d.]+$/.test(str)) return Math.round(parseFloat(str)*100); let c=0,m; const re=/([\d.]+)\s*([gsc])/g; while((m=re.exec(str))){ const v=parseFloat(m[1]); c+= m[2]==='g'?v*10000: m[2]==='s'?v*100: v; } return Math.round(c); }
-function fmt(c){ if(c==null||isNaN(c)) return '—'; const neg=c<0; c=Math.round(Math.abs(c)); const g=Math.floor(c/10000),s=Math.floor((c%10000)/100),cp=c%100; let o=''; if(g) o+=g+'g '; if(g||s) o+=s+'s '; o+=cp+'c'; return (neg?'−':'')+o.trim(); }
-function fmtShort(c){ c=Math.round(c); const g=Math.floor(c/10000),s=Math.round((c%10000)/100); return g?`${g}g${s?s+'s':''}`:`${s}s`; }
+function parseMoney(str){ if(str==null) return 0; str=String(str).trim().toLowerCase(); if(!str||/[-−]/.test(str)) return 0; if(/^[\d.]+$/.test(str)) return Math.round(parseFloat(str)*100); let c=0,m; const re=/([\d.]+)\s*([gsc])/g; while((m=re.exec(str))){ const v=parseFloat(m[1]); c+= m[2]==='g'?v*10000: m[2]==='s'?v*100: v; } return Math.round(c); }
+function fmt(c){ if(c==null||!isFinite(c)) return '—'; const neg=c<0; c=Math.round(Math.abs(c)); const g=Math.floor(c/10000),s=Math.floor((c%10000)/100),cp=c%100; let o=''; if(g) o+=g+'g '; if(g||s) o+=s+'s '; o+=cp+'c'; return (neg?'−':'')+o.trim(); }
+function fmtShort(c){ if(c==null||!isFinite(c)) return '—'; c=Math.round(c); const g=Math.floor(c/10000),s=Math.round((c%10000)/100); return g?`${g}g${s?s+'s':''}`:`${s}s`; }
 function fmtQty(q){ return (Math.round(q*100)/100).toString(); }
 function matById(id){ return S.mats.find(m=>m.id===id); }
 function matName(id){ const m=matById(id); if(m) return m.name; const r=S.tailoring.find(t=>t.id===id); return r?r.name:id; }
@@ -544,9 +540,9 @@ function outLevel(o){ return o.itemLevel||(o.reqLevel?o.reqLevel+5:1); }   // it
 function rowText(row){ return row?row.results.filter(r=>r.chance>0).map(r=>`${matName(r.mat)} ${Math.round(r.chance*100)}%${r.max>1?` ×${r.min}–${r.max}`:''}`).join(' · '):'—'; }
 function ahPrice(id){ const m=matById(id); if(m&&m.vendor!=null) return m.vendor; const p=S.prices[id]; return p?p:0; }
 function isUnpriced(id){ const m=matById(id); if(m&&m.vendor!=null) return false; return !(S.prices[id]>0); }
-function inputCost(id,depth=0){ const m=matById(id); if(m) return ahPrice(id); const r=S.tailoring.find(t=>t.id===id); if(!r||depth>3) return 0; const crafted=r.inputs.reduce((a,i)=>a+inputCost(i.mat,depth+1)*i.qty,0); const ah=S.prices[id]||0; return ah>0?Math.min(ah,crafted):crafted; }
+function inputCost(id,depth=0){ const m=matById(id); if(m) return ahPrice(id); const r=S.tailoring.find(t=>t.id===id); if(!r||depth>3) return 0; /* unknown id: 0 here, but recipeUnpriced() flags it so no caller treats the recipe as priced */ const crafted=r.inputs.reduce((a,i)=>a+inputCost(i.mat,depth+1)*i.qty,0); const ah=S.prices[id]||0; return ah>0?Math.min(ah,crafted):crafted; }
 function recipeMatCost(r){ return r.inputs.reduce((a,i)=>a+inputCost(i.mat)*i.qty,0); }
-function recipeUnpriced(r){ const out=[]; for(const i of r.inputs){ const m=matById(i.mat); if(m){ if(isUnpriced(i.mat)) out.push(i.mat); } else { const sub=S.tailoring.find(t=>t.id===i.mat); if(sub) for(const j of sub.inputs) if(isUnpriced(j.mat)) out.push(j.mat); } } return [...new Set(out)]; }
+function recipeUnpriced(r,depth=0){ const out=[]; for(const i of r.inputs){ const m=matById(i.mat); if(m){ if(isUnpriced(i.mat)) out.push(i.mat); } else { const sub=S.tailoring.find(t=>t.id===i.mat); if(sub&&depth<3){ if(!(S.prices[sub.id]>0)) out.push(...recipeUnpriced(sub,depth+1)); } else out.push(i.mat); } } return [...new Set(out)]; }
 function observedStats(){ const st={}; for(const o of S.observed){ const b=bracketFor(o.lvl); if(!b) continue; const k=b.key+'|'+o.slot+'|'+o.quality; st[k]=st[k]||{n:0,mats:{}}; st[k].n++; st[k].mats[o.mat]=st[k].mats[o.mat]||{count:0,qty:0}; st[k].mats[o.mat].count++; st[k].mats[o.mat].qty+=o.qty; } return st; }
 function expectedDE(lvl,slot,quality){
   const b=bracketFor(lvl); if(!b) return {mats:{},source:'none',n:0,row:null};
@@ -565,18 +561,20 @@ function tailRow(r,skill,mode){
   let value=0,vlabel='—'; if(r.output.quality!=='white'){ if(mode==='de'){value=dev;vlabel='DE';} else if(mode==='sell'){value=sell;vlabel='sell';} else if(sell>dev){value=sell;vlabel='sell';} else {value=dev;vlabel='DE';} } else if(sell>0){ value=sell; vlabel='sell'; }
   return {cost,ch,col,dev,sell,value,vlabel,net:value-cost,cpp:ch>0?cost/ch:Infinity,netcpp:ch>0?(cost-value)/ch:Infinity,feeds:Object.entries(de.mats).map(([id,q])=>`${fmtQty(q)} ${matName(id)}`).join(', ')||'<span class="muted">—</span>',unp:recipeUnpriced(r),de};
 }
-function enchRow(r,skill,eff,useCrafted){ const ch=skillChance(skill,r.skill); const col=skillColor(skill,r.skill); let cost=0; const srcs=[],unp=[]; for(const i of r.inputs){ const p=matPriceForEnch(i.mat,eff,useCrafted); cost+=p.price*i.qty; if(p.src.startsWith('craft')) srcs.push(matName(i.mat)+' via '+p.src.slice(7)); if(p.src==='unpriced'||(p.price===0&&isUnpriced(i.mat))) unp.push(i.mat); } const credit=r.produces==='item'?(r.sell||0):0; const net=cost-credit; return {ch,col,cost,credit,net,cpp:ch>0?net/ch:Infinity,srcs,unp}; }
+function enchRow(r,skill,eff,useCrafted){ const ch=skillChance(skill,r.skill); const col=skillColor(skill,r.skill); let cost=0; const srcs=[],unp=[]; for(const i of r.inputs){ const p=matPriceForEnch(i.mat,eff,useCrafted); cost+=p.price*i.qty; if(p.src.startsWith('craft')) srcs.push(matName(i.mat)+' via '+p.src.slice(7)); if(p.src==='unpriced'||(p.price===0&&isUnpriced(i.mat))||!matById(i.mat)) unp.push(i.mat); } const credit=r.produces==='item'?(r.sell||0):0; const net=cost-credit; return {ch,col,cost,credit,net,cpp:ch>0?net/ch:Infinity,srcs,unp}; }
 function selfSlot(name){ const n=name.toLowerCase(); if(/bracer/.test(n)) return 9; if(/chest/.test(n)) return 5; if(/cloak/.test(n)) return 15; if(/boots/.test(n)) return 8; if(/gloves/.test(n)) return 10; if(/shield/.test(n)) return 17; if(/weapon/.test(n)) return 16; return null; }
 // cheapest self-castable enchants at current skill (for macros and the "this stop" card)
-function bestEnchants(){ const skill=cur().ench; const eff=effectivePrices(); return S.enchanting.filter(r=>!r.consumesRod&&r.produces!=='item'&&selfSlot(r.name)&&skillChance(skill,r.skill)>0).map(r=>({r,x:enchRow(r,skill,eff,true),slot:selfSlot(r.name)})).sort((a,b)=>a.x.cpp-b.x.cpp); }
+function bestEnchants(){ const skill=cur().ench; const eff=effectivePrices(); return S.enchanting.filter(r=>!r.consumesRod&&r.produces!=='item'&&selfSlot(r.name)&&skillChance(skill,r.skill)>0).map(r=>({r,x:enchRow(r,skill,eff,true),slot:selfSlot(r.name)})).filter(e=>e.x.unp.length===0&&isFinite(e.x.cpp)).sort((a,b)=>a.x.cpp-b.x.cpp); }
 function bestTailoring(){ const skill=cur().tail; return S.tailoring.filter(r=>skillChance(skill,r.skill)>0).map(r=>({r,x:tailRow(r,skill,'de')})).sort((a,b)=>a.x.netcpp-b.x.netcpp); }
+// This Stop's pick: skip bind-on-pickup outputs (can't be sold or mailed) and anything with an unpriced input (its cost is a lie); the sort already nets DE value, so a cheap white beats a losing green
+function craftNow(){ const all=bestTailoring(); const ok=all.filter(x=>!x.r.output.bop&&x.x.unp.length===0&&isFinite(x.x.netcpp)); const skipped=all.filter(x=>!ok.includes(x)); return {pick:ok[0]||null,skipped,any:all.length>0}; }
 function nextFloor(){ return WAND_FLOORS.find(f=>f.skill>cur().ench)||null; }
 function nextGate(){ return TAIL_GATES.find(f=>f.skill>cur().tail)||null; }
 
 // ---------- solvers ----------
 function solveTailoring(from,to,mode,disenchantAll){
   const crafts={},bank={},cloth={},log=[]; let cash=0,value=0;
-  for(let s=from;s<to;s++){ let best=null; for(const r of S.tailoring){ const ch=skillChance(s,r.skill); if(ch<=0) continue; const x=tailRow(r,s,'de'); const net=x.cost-(disenchantAll?x.value:0); const score=mode==='net'?(net<0?net:net/ch):x.cost/ch; if(!best||score<best.score||(score===best.score&&ch>best.ch)) best={r,score,ch,x}; }
+  for(let s=from;s<to;s++){ let best=null; for(const r of S.tailoring){ const ch=skillChance(s,r.skill); if(ch<=0) continue; const x=tailRow(r,s,'de'); if(x.unp.length||r.output.bop) continue; const net=x.cost-(disenchantAll?x.value:0); const score=mode==='net'?(net<0?net:net/ch):x.cost/ch; if(!best||score<best.score||(score===best.score&&ch>best.ch)) best={r,score,ch,x}; }
     if(!best){ log.push(`No craft available at skill ${s}; stopped.`); break; }
     const n=1/best.ch; crafts[best.r.id]=(crafts[best.r.id]||0)+n; cash+=best.x.cost*n;
     if(disenchantAll&&best.r.output.quality!=='white'){ for(const [id,q] of Object.entries(best.x.de.mats)) bank[id]=(bank[id]||0)+q*n; value+=best.x.dev*n; }
@@ -585,7 +583,7 @@ function solveTailoring(from,to,mode,disenchantAll){
 }
 function solveEnchanting(from,to,bank){
   const eff=effectivePrices(); const crafts={},need={},log=[]; let cash=0; bank=Object.assign({},bank);
-  for(let s=from;s<to;s++){ let best=null; for(const r of S.enchanting){ if(r.consumesRod) continue; const ch=skillChance(s,r.skill); if(ch<=0) continue; let c=0; for(const i of r.inputs) c+=i.qty*matPriceForEnch(i.mat,eff,true).price; c-= r.produces==='item'?(r.sell||0):0; const score=c/ch; if(!best||score<best.score||(score===best.score&&ch>best.ch)) best={r,score,ch}; }
+  for(let s=from;s<to;s++){ let best=null; for(const r of S.enchanting){ if(r.consumesRod) continue; const ch=skillChance(s,r.skill); if(ch<=0) continue; if(r.inputs.some(i=>!matById(i.mat)&&!S.tailoring.find(t=>t.id===i.mat))) continue; let c=0; for(const i of r.inputs) c+=i.qty*matPriceForEnch(i.mat,eff,true).price; c-= r.produces==='item'?(r.sell||0):0; const score=c/ch; if(!best||score<best.score||(score===best.score&&ch>best.ch)) best={r,score,ch}; }
     if(!best){ log.push(`No recipe available at skill ${s}; stopped.`); break; }
     const n=1/best.ch; crafts[best.r.id]=(crafts[best.r.id]||0)+n;
     for(const i of best.r.inputs){ const q=i.qty*n; const have=bank[i.mat]||0; const fromBank=Math.min(have,q); bank[i.mat]=have-fromBank; const buy=q-fromBank; if(buy>0){ need[i.mat]=(need[i.mat]||0)+buy; cash+=buy*ahPrice(i.mat); } }
@@ -691,12 +689,15 @@ function renderSession(){
     {l:'DE bag',v:greens==null?'—':greens,d:greens==null?'companion addon not loaded':'greens waiting in bag 4'},
   ].map(t=>`<div class="tile"><div class="l">${t.l}</div><div class="v num">${t.v}</div><div class="d">${t.d}</div></div>`).join('');
   // this stop
-  const be=bestEnchants(); const bt=bestTailoring(); const e1=be[0]; const t1=bt.find(x=>x.r.output.quality!=='white')||bt[0];
+  const be=bestEnchants(); const cn=craftNow(); const e1=be[0]; const t1=cn.pick;
   let stop=[];
   if(e1){ const pts=fl?fl.skill-c.ench:0; const crafts=pts/e1.x.ch; const mats=e1.r.inputs.map(i=>`${Math.ceil(i.qty*crafts)} ${matName(i.mat)}`).join(' + ');
     stop.push(['Enchant now',`<b>${esc(e1.r.name)}</b> on slot ${e1.slot} · ${fmt(e1.x.cpp)}/pt${fl?` · ~${Math.ceil(crafts)} casts to ${fl.skill} = ${esc(mats)} (${fmt(e1.x.cpp*pts)})`:''}`]); }
   else stop.push(['Enchant now','nothing castable on your own gear at this skill']);
-  if(t1){ stop.push(['Craft now',`<b>${esc(t1.r.name)}</b> · ${(t1.x.ch*100).toFixed(0)}% skill-up · net ${t1.x.net>=0?'<span class="pos">+'+fmt(t1.x.net)+'</span>':'<span class="neg">'+fmt(t1.x.net)+'</span>'} per craft after disenchant · feeds ${t1.x.feeds}`]); }
+  if(t1){ const why=cn.skipped.filter(x=>x.x.netcpp<t1.x.netcpp).slice(0,2).map(x=>`${esc(x.r.name)} (${x.r.output.bop?'BoP':'unpriced: '+esc(x.x.unp.map(matName).join(', '))})`).join(', ');
+    stop.push(['Craft now',`<b>${esc(t1.r.name)}</b>${t1.r.flag?' <span class="flag" title="'+esc(t1.r.flag)+'">(C)</span>':''} · ${(t1.x.ch*100).toFixed(0)}% skill-up · net ${t1.x.net>=0?'<span class="pos">+'+fmt(t1.x.net)+'</span>':'<span class="neg">'+fmt(t1.x.net)+'</span>'} per craft${t1.r.output.quality==='white'?'':' after disenchant'}${t1.x.feeds&&t1.r.output.quality!=='white'?' · feeds '+t1.x.feeds:''}${why?`<br><span class="dim">skipped: ${why}</span>`:''}`]); }
+  else if(cn.any){ const u=[...new Set(cn.skipped.flatMap(x=>x.x.unp))].map(matName).slice(0,4).join(', '); stop.push(['Craft now',`nothing fully priced: ${cn.skipped.length} craft${cn.skipped.length>1?'s':''} in range but ${u?'unpriced '+esc(u):'all bind-on-pickup'} — fill Prices first`]); }
+  else stop.push(['Craft now','nothing in your skill window']);
   const ceil=(+$('shCeil').value||70)/100; const brs=deBrackets().filter(b=>b.min<=30);
   stop.push(['Buy greens under',brs.map(b=>`<span class="num">ilvl ${b.min}–${b.max}</span> armor ${fmtShort(deValue(expectedDE(b.min,'armor','green').mats)*ceil)} · weapon ${fmtShort(deValue(expectedDE(b.min,'weapon','green').mats)*ceil)}`).join('<br>')]);
   if(fl&&e1){ const casts=Math.ceil((fl.skill-c.ench)/e1.x.ch); const per=e1.r.inputs.reduce((a,i)=>a+i.qty,0); stop.push(['Rule',casts<=15?`Floor is close: press A ${casts} times this stop and ding ${fl.name}.`:`Press A once per ${per} ${e1.r.inputs.map(i=>matName(i.mat)).join('/')} in the bag, then stop. ${casts} casts to the floor is a few stops, not one.`]); }
