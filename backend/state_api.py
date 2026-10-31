@@ -23,7 +23,7 @@ holding the entry cannot re-add it with its next PUT. Writes are atomic (tmp fil
 
 Run under Docker (see docker-compose.yml) or by hand:
   python backend/state_api.py --dir state --port 8088
-Dev mode, no nginx: also serve index.html and data/ from the repo root on the same port:
+Dev mode, no nginx: also serve public/index.html (or index.html) and data/ from the repo root on the same port:
   python backend/state_api.py --static . --port 8088    # then open http://localhost:8088/
 
 Stdlib only. No auth: LAN only, one user. Same-origin only: the page reaches it through
@@ -223,7 +223,8 @@ def make_handler(store, static_dir):
             if '%' in path or any(bad in raw for bad in ('..', '\\', '\x00', '//')):   # nothing we serve needs encoding
                 return self._json(404, {'error': 'not found'})
             if raw in ('/', '/index.html'):
-                full, rel = os.path.join(static_dir, 'index.html'), 'index.html'
+                rel = 'index.html'
+                full = next((c for c in (os.path.join(static_dir, 'public', 'index.html'), os.path.join(static_dir, 'index.html')) if os.path.isfile(c)), os.path.join(static_dir, 'index.html'))
             elif raw.startswith('/data/') and raw.count('/') == 2 and raw.endswith('.json'):
                 rel = raw[1:]
                 full = os.path.realpath(os.path.join(static_dir, rel))

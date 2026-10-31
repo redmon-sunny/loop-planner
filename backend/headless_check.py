@@ -41,8 +41,7 @@ def main():
     a = ap.parse_args()
     from playwright.sync_api import sync_playwright
     os.makedirs(a.shots, exist_ok=True)
-    if not os.path.exists(os.path.join(ROOT, 'index.html')):
-        subprocess.check_call(['sh', 'build.sh'], cwd=ROOT)
+    subprocess.check_call(['sh', 'build.sh'], cwd=ROOT, stdout=subprocess.DEVNULL)   # public/index.html, always fresh
     state_dir = tempfile.mkdtemp(prefix='lp-hc-')
     port = free_port(); base = f'http://127.0.0.1:{port}/'
     api = start_api(state_dir, port)
@@ -215,7 +214,7 @@ def main():
             # ---- stage 2c: review items B1, B2, B4, B5, B8 on the seed tables (file:// has no recipes.json) ----
             ctxR = browser.new_context(viewport={'width': 1366, 'height': 900})
             R = ctxR.new_page(); watch(R, 'review')
-            R.goto('file://' + os.path.join(ROOT, 'index.html')); R.wait_for_function("typeof renderAll==='function' && document.querySelector('#doNow').children.length>0", timeout=5000)
+            R.goto('file://' + os.path.join(ROOT, 'public', 'index.html')); R.wait_for_function("typeof renderAll==='function' && document.querySelector('#doNow').children.length>0", timeout=5000)
             # B1: Tailoring 60 / Enchanting 1 on seed data used to pick Novice Arcanist's Sash (BoP, unpriced potions)
             R.fill('#skTail', '60'); R.dispatch_event('#skTail', 'input'); R.fill('#skEnch', '1'); R.dispatch_event('#skEnch', 'input')
             R.click('#topTabs button[data-view="now"]'); R.evaluate("document.querySelectorAll('#stopOut details').forEach(d=>d.open=true)"); stop = R.locator('#stopOut').inner_text()
@@ -243,7 +242,7 @@ def main():
             # ---- file:// still works, on localStorage alone ----
             ctxF = browser.new_context(viewport={'width': 1366, 'height': 900})
             F = ctxF.new_page(); watch(F, 'file')
-            F.goto('file://' + os.path.join(ROOT, 'index.html')); F.wait_for_timeout(400)
+            F.goto('file://' + os.path.join(ROOT, 'public', 'index.html')); F.wait_for_timeout(400)
             check(badge(F) == 'local file', 'file:// shows the local-file badge')
             check(not F.locator('#view-plan').is_hidden(), 'file:// page renders')
             browser.close()

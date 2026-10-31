@@ -8,7 +8,8 @@ Single static page plus two Python scripts. No frameworks, no database, no third
 
 ```
 loop-planner/
-  index.html              the planner (open directly, or serve it)
+  page.html               the planner source; `sh build.sh` wraps it into public/index.html (git-ignored)
+  public/index.html       what nginx serves — open it directly for file:// mode
   data/                   files the page loads on open when served over http(s)
     recipes.json          from fdb_seed.py   (ForeverDB)     — optional
     prices.json           from sv_parse.py   (Auctionator)   — optional
@@ -31,7 +32,7 @@ loop-planner/
 
 ## Run it
 
-**Local file:** open `index.html`. Seed data only; the `data/` loader is skipped on `file://`.
+**Local file:** `sh build.sh`, then open `public/index.html`. Seed data only; the `data/` loader is skipped on `file://`.
 
 **Homelab:** once, `install -d -o "$(id -u)" -g "$(id -g)" state` (Docker would otherwise create it root-owned) and,
 if your uid isn't 1000, `LP_UID=$(id -u)` and `LP_GID=$(id -g)` in `.env`. Then `docker compose up -d` and
@@ -206,7 +207,7 @@ python3 backend/fdb_seed.py --greens            # also data/greens.json: every u
 
 ## v0.3 — Session mode (added 2026-10-23; superseded by the tabs in v0.6)
 
-`page.html` is the source; `./build.sh` wraps it into `index.html` for nginx. The page opens in **Session** mode on
+`page.html` is the source; `./build.sh` wraps it into `public/index.html` for nginx. (v0.3 text follows; the modes became tabs in v0.6.) The page opened in **Session** mode on
 touch or narrow screens and **Plan** mode on the desk; the toggle in the header is remembered.
 
 Session mode is the couch/iPad flow: Now tiles (both skills, distance to the next wand floor and trainer gate,

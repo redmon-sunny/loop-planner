@@ -226,3 +226,6 @@ data/
 *.lua
 SavedVariables/
 state/
+
+# build product: sh build.sh writes public/index.html from page.html
+public/

@@ -6,7 +6,9 @@ services:
     ports:
       - "8087:80"          # or drop this and put it behind the existing reverse proxy
     volumes:
-      - ./index.html:/usr/share/nginx/html/index.html:ro
+      # public/ holds only the built index.html (sh build.sh). Mount the DIRECTORY, never the file: git pull replaces
+      # index.html by rename, and a file bind mount would keep serving the old inode until the container is recreated.
+      - ./public:/usr/share/nginx/html:ro
       - ./data:/usr/share/nginx/html/data:ro
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
