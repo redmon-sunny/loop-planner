@@ -314,10 +314,13 @@ def main():
     srv = ThreadingHTTPServer((a.bind, a.port), make_handler(store, static_dir))
     print(f'state API on http://{a.bind}:{a.port}/api/  state file {store.path}'
           + (f'  static from {static_dir}' if static_dir else ''), flush=True)
+    import signal
+    signal.signal(signal.SIGTERM, lambda *_: threading.Thread(target=srv.shutdown, daemon=True).start())
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
         pass
+    srv.server_close()
 
 
 if __name__ == '__main__':

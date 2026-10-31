@@ -51,6 +51,32 @@ if your uid isn't 1000, `LP_UID=$(id -u)` and `LP_GID=$(id -g)` in `.env`. Then 
 
 **Data → Export** copies the whole document as JSON; Import restores it.
 
+## The page (v0.6): four tabs
+
+| Tab | For | What is on it |
+|---|---|---|
+| **Now** | the 2-minute town stop, any device | one "Do this now" sentence per profession; four tiles coloured by state (≤15 points to a floor = green, scan age fresh/stale/none, DE bag count); This Stop with one action per profession and the math behind a tap; buyout ceilings as a strip by item level with the bracket your crafts feed highlighted |
+| **Session** | the couch, iPad + controller | three packs; the controller legend (labels only; bodies behind a toggle); Copy all 8; checklist; the DE tap logger |
+| **Plan** | the desk | Prices · Tailoring · Enchanting · A→B solver · Shuffle · Macros · Observed, as a second row of tabs |
+| **Data** | housekeeping | characters (rename/delete), theme, export/import/reset, the recipe/mat/yield tables with overrides |
+
+The tab that opens first is chosen once per device from the pointer type (touch → Now, mouse → Plan) and then
+remembered; the layout adapts to any width live, but resizing or rotating never switches tabs. Theme and the open
+tab are per device and never shared.
+
+**Pricing rule on Now:** a number appears only when every mat behind it has a price. Otherwise the line says
+"prices missing" and names them; nothing is ever costed at zero. "Craft now" is the best net-per-point craft that is
+craftable and fully priced; bind-on-pickup outputs and recipes with any unpriced input are skipped and named when
+they would otherwise have won. The same filter drives the A→B solver and the macro placeholders. Thresholds (15
+points, 24 h) are provisional until real prices exist.
+
+**Tables are not in the shared document.** Recipes, mats and the yield table come from `data/recipes.json`
+(ForeverDB) on every device — cached per device so an API outage doesn't lose them — or from the built-in Classic
+seed on `file://`. What travels is yours: custom recipes, sale prices, vendor-price and yield-row overrides (Data →
+Apply diffs the tables against the source and stores only the differences). That takes the document from ~450 KB to
+~20 KB per save. Materials that exist under two ids (seed `lme`, ForeverDB `lesser_magic_essence`) are aliased by
+item id or name on load, and every price, observation and override key is migrated to the ForeverDB id.
+
 ## Shared state — `state_api.py` (v0.4)
 
 One JSON document, `state/state.json`, shared by every browser on the LAN: characters and skills, typed prices,
@@ -178,7 +204,7 @@ python3 backend/fdb_seed.py --greens            # also data/greens.json: every u
 - **Data** — every table as editable JSON; Export/Import; Reset.
 - Header line: next Enchanting wand floor and next Tailoring trainer gate — the only two numbers you need while playing.
 
-## v0.3 — Session mode (added 2026-10-23)
+## v0.3 — Session mode (added 2026-10-23; superseded by the tabs in v0.6)
 
 `page.html` is the source; `./build.sh` wraps it into `index.html` for nginx. The page opens in **Session** mode on
 touch or narrow screens and **Plan** mode on the desk; the toggle in the header is remembered.

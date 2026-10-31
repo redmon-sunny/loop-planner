@@ -70,12 +70,23 @@ DE_ROWS = [
 ]
 
 
-def synthetic_recipes(idmap_path=None):
-    """A recipes.json document built offline from the fixtures, for the page check."""
+RECIPE_DEFLECT = {"spellId": 7428, "name": "Enchant Bracer - Minor Deflect", "category": {"name": "Bracer", "parent": {"name": "Enchanting"}},
+                  "skill": {"orange": 20, "yellow": 55, "green": 65, "grey": 75}, "requiredLevel": None, "makes": None, "effect": {"text": "+2 Defense"},
+                  "reagents": [{"itemId": 10938, "name": "Lesser  magic Essence", "count": 1}], "tools": [],
+                  "learnedFrom": {"automatic": False, "sources": {"ways": ["trainer"], "learnAtSkill": 20}, "known": True},
+                  "newInForever": False, "changedFromClassic": [], "speculation": False}
+
+
+def synthetic_recipes(idmap_path=None, drop_ids=()):
+    """A recipes.json document built offline from the fixtures, for the page check. drop_ids removes seed entries from the
+    id map first, so the mat comes out under a slug id (what happened on core-01 for Lesser Magic Essence) and the page's
+    alias migration has something to do."""
     with open(idmap_path or os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mat_item_ids.json'), encoding='utf-8') as f:
         idmap = json.load(f)
+    for k in drop_ids:
+        idmap.pop(k, None)
     recipes = {'tailoring': [fs.map_recipe(RECIPE_BOLT, 'tailoring'), fs.map_recipe(RECIPE_CAPE, 'tailoring')],
-               'enchanting': [fs.map_recipe(RECIPE_ROD, 'enchanting'), fs.map_recipe(RECIPE_ENCH, 'enchanting')]}
+               'enchanting': [fs.map_recipe(RECIPE_ROD, 'enchanting'), fs.map_recipe(RECIPE_ENCH, 'enchanting'), fs.map_recipe(RECIPE_DEFLECT, 'enchanting')]}
     items = {i['id']: fs.map_item(i) for i in (ITEM_POTION, ITEM_HAMMER, ITEM_CAPE, ITEM_MOTE_GUESS)}
     items[2996] = fs.map_item(dict(ITEM_POTION, id=2996, name="Bolt of Linen Cloth", classId=7, **{"class": "Trade Goods"}, sellPrice=10))
     items[6218] = fs.map_item(dict(ITEM_POTION, id=6218, name="Runed Copper Rod", classId=7, sellPrice=25))
@@ -182,6 +193,14 @@ class BuildOutputTest(unittest.TestCase):
         self.assertEqual(by['Boots of Darkness']['skill'], [125, 135, 150, 165]); self.assertIn('learn-at', by['Boots of Darkness']['flag'])
         self.assertEqual(by['Green Woolen Robe']['skill'], [135, 135, 150, 165]); self.assertIn('yellow', by['Green Woolen Robe']['flag'])
         self.assertEqual(out['unmapped'], [])
+
+    def test_reagent_matches_seed_by_item_id_and_loose_name(self):
+        e = {r['id']: r for r in self.out['enchanting']}
+        self.assertEqual(e['enchant_bracer_minor_deflect']['inputs'], [{'mat': 'lme', 'qty': 1}], 'odd spacing/case still lands on the seed id')
+        no_lme = synthetic_recipes(drop_ids=('lme',))
+        e2 = {r['id']: r for r in no_lme['enchanting']}
+        self.assertEqual(e2['enchant_bracer_minor_deflect']['inputs'][0]['mat'], 'lesser_magic_essence', 'with no seed entry the mat gets a slug id (the page aliases it back)')
+        self.assertEqual(next(m for m in no_lme['mats'] if m['id'] == 'lesser_magic_essence')['itemId'], 10938)
 
     def test_same_name_recipes_disambiguated(self):
         twin = copy.deepcopy(RECIPE_CAPE); twin['spellId'] = 99999

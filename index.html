@@ -129,12 +129,38 @@ footer{color:var(--muted);font-size:12px;margin-top:16px}
 }
 @media (max-width:640px){ .pad{grid-template-columns:1fr} header h1{font-size:19px} }
 @media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+
+/* ---- 4a: top tabs, state tiles, legend ---- */
+.hdr-left{min-width:0}
+nav.top{position:sticky;top:0;z-index:10;display:flex;gap:4px;background:var(--bg);padding:8px 0 0;margin:0 0 12px;border-bottom:1px solid var(--line)}
+nav.top button{flex:1 1 0;border:0;border-bottom:3px solid transparent;border-radius:8px 8px 0 0;background:transparent;color:var(--muted);font-family:var(--display);font-weight:700;font-size:16px;min-height:48px;padding:8px 10px}
+nav.top button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent);background:var(--panel)}
+main.view{display:grid;gap:14px;max-width:1100px}
+#view-plan{display:block}
+#view-plan nav.tabs{margin-top:0}
+.donow .line{font-size:17px;line-height:1.45;padding:8px 12px;border-radius:10px;background:var(--bg);margin:6px 0;border-left:4px solid var(--line)}
+.donow .line.good{border-left-color:var(--ok)} .donow .line.bad{border-left-color:var(--bad)}
+.now .tile{border:1px solid transparent}
+.now .tile.good{border-color:var(--ok);box-shadow:inset 3px 0 0 var(--ok)} .now .tile.warn{border-color:var(--warn);box-shadow:inset 3px 0 0 var(--warn)} .now .tile.bad{border-color:var(--bad);box-shadow:inset 3px 0 0 var(--bad)} .now .tile.lit{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.stop details.act{margin:0;border-top:1px solid var(--line)} .stop details.act:first-child{border-top:0}
+.stop summary{display:grid;grid-template-columns:76px 1fr;gap:10px;align-items:baseline;list-style:none;padding:10px 4px;min-height:48px;cursor:pointer}
+.stop summary::-webkit-details-marker{display:none}
+.stop summary .k{font-family:var(--display);font-weight:700;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.stop summary .h{font-size:15px;line-height:1.4;overflow-wrap:anywhere}
+.stop .why{padding:0 4px 10px 86px;color:var(--muted);font-size:13.5px}
+.strip{display:flex;flex-wrap:wrap;gap:8px}
+.strip .cell{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13.5px;white-space:nowrap}
+.strip .cell.hot{border-color:var(--accent);background:var(--accent-soft)}
+.pad .btn .body{display:none} .pad.bodies .btn .body{display:block}
+.pad .btn{min-height:56px}
+button.big{min-height:52px;font-size:16px;padding:0 18px}
+@media (max-width:640px){ .stop summary{grid-template-columns:1fr} .stop .why{padding-left:4px} header{padding-block:10px 6px} .hdr-right label{font-size:10px} input[type=number]{width:72px} nav.top button{font-size:15px;padding:8px 4px} }
+@media (pointer:coarse){ nav.top button{min-height:52px} .strip .cell{min-height:44px;display:inline-flex;align-items:center} }
 </style>
 
 <header>
-  <div style="min-width:0">
+  <div class="hdr-left">
     <h1>Loop Planner</h1>
-    <div class="sub">Tailoring → Disenchant → Enchanting for WoW: Forever. Seed rows marked <span class="flag">(C)</span> rest on Classic-era numbers.</div>
     <div class="sub"><span class="badge" id="syncBadge" title="Where this page's state is saved">local</span> <span id="dataStatus"></span></div>
   </div>
   <div class="hdr-right">
@@ -147,41 +173,54 @@ footer{color:var(--muted);font-size:12px;margin-top:16px}
     </label>
     <label>Tailoring <input type="number" id="skTail" min="1" max="300" value="1"></label>
     <label>Enchanting <input type="number" id="skEnch" min="1" max="300" value="1"></label>
-    <label>Mode <span class="seg"><button id="modeSession" aria-pressed="false">Session</button><button id="modePlan" aria-pressed="false">Plan</button></span></label>
-    <label>Theme <select id="theme"><option value="auto">Auto</option><option value="dark">Dark</option><option value="light">Light</option></select></label>
   </div>
 </header>
 
-<!-- ===================== SESSION MODE ===================== -->
-<div id="session" hidden>
+<nav class="top" role="tablist" aria-label="Views" id="topTabs">
+  <button role="tab" data-view="now">Now</button>
+  <button role="tab" data-view="session">Session</button>
+  <button role="tab" data-view="plan">Plan</button>
+  <button role="tab" data-view="data">Data</button>
+</nav>
+
+<!-- ===================== NOW: the town stop ===================== -->
+<main id="view-now" class="view" hidden>
+  <div class="s-card donow">
+    <h2>Do this now <small id="nowChar"></small></h2>
+    <div id="doNow" class="donow-lines"></div>
+    <div class="dim" id="doNowNote"></div>
+  </div>
   <div class="s-card">
-    <h2>Now <small id="nowChar"></small></h2>
     <div class="now" id="nowTiles"></div>
   </div>
-
   <div class="s-card">
-    <h2>This stop <small>what the numbers say to do at the next town</small></h2>
-    <div id="stopOut" class="kv"></div>
+    <h2>This stop <small>one action per profession; tap a line for the math</small></h2>
+    <div id="stopOut" class="stop"></div>
   </div>
-
   <div class="s-card">
-    <h2>Session <small>pick one, the controller card fills itself</small></h2>
+    <h2>Buy greens under <small>max buyout at <span id="ceilEcho"></span>% of disenchant value, by item level</small></h2>
+    <div id="ceilStrip" class="strip"></div>
+  </div>
+</main>
+
+<!-- ===================== SESSION: the couch ===================== -->
+<main id="view-session" class="view" hidden>
+  <div class="s-card">
+    <h2>Session <small>pick a pack; the controller legend fills itself</small></h2>
     <div class="packs" id="packBtns"></div>
     <div id="packOut" hidden>
-      <h3 id="packTitle"></h3>
       <p class="hint" id="packNote"></p>
-      <div class="pad" id="padOut"></div>
-      <div class="row" style="margin-top:10px">
-        <button class="primary" id="copyMacros">Copy all 8 macros</button>
-        <button id="copyCache">Copy macros-cache block</button>
-        <span class="dim">Paste each into the in-game macro window as LP1–LP8, or let the backend write them while logged out.</span>
+      <div class="row" style="margin:6px 0 10px">
+        <button class="primary big" id="copyMacros">Copy all 8 macros</button>
+        <button id="toggleBodies" class="ghost" aria-pressed="false">Show macro bodies</button>
+        <button id="copyCache" class="ghost">Copy macros-cache block</button>
       </div>
+      <div class="pad" id="padOut"></div>
       <h3>Checklist</h3>
       <div class="check" id="checkOut"></div>
       <div class="row"><button class="ghost" id="checkReset">Reset checklist</button></div>
     </div>
   </div>
-
   <div class="s-card">
     <h2>Log a disenchant <small>one tap per result</small></h2>
     <div class="row">
@@ -194,30 +233,29 @@ footer{color:var(--muted);font-size:12px;margin-top:16px}
     <div class="choices qty" id="sQty"></div>
     <div class="row"><span class="dim" id="sLast"></span><button class="ghost" id="sUndo">Undo last</button></div>
   </div>
-</div>
+</main>
 
-<!-- ===================== PLAN MODE ===================== -->
-<nav class="tabs" role="tablist" id="planTabs" hidden>
+<!-- ===================== PLAN: the desk ===================== -->
+<main id="view-plan" class="view" hidden>
+<nav class="tabs" role="tablist" id="planTabs">
   <button role="tab" data-tab="prices" aria-selected="true">Prices</button>
   <button role="tab" data-tab="tailoring">Tailoring</button>
   <button role="tab" data-tab="enchanting">Enchanting</button>
-  <button role="tab" data-tab="plan">Plan</button>
+  <button role="tab" data-tab="plan">A → B</button>
   <button role="tab" data-tab="shuffle">Shuffle</button>
   <button role="tab" data-tab="macros">Macros</button>
   <button role="tab" data-tab="observed">Observed DE</button>
-  <button role="tab" data-tab="data">Data</button>
 </nav>
-<div id="plan" hidden>
 <section class="tab active" id="tab-prices">
   <h2>Material prices</h2>
-  <p class="hint">Type money as <code>1g 20s</code>, <code>35s</code>, <code>8c</code>; a bare number is silver. Vendor items are fixed. Unpriced AH mats are outlined and count as zero, which makes every route using them look free, so fill them first. A scan file (data/prices.json) fills these automatically; a price you type stays until a newer scan arrives.</p>
+  <p class="hint">Type money as <code>1g 20s</code>, <code>35s</code>, <code>8c</code>; a bare number is silver. Vendor items are fixed. Unpriced AH mats are outlined; anything that needs one is reported as "prices missing" rather than costed at zero. A scan file (data/prices.json) fills these automatically; a price you type stays until a newer scan arrives.</p>
   <div class="row"><span id="unpricedNote" class="muted"></span></div>
   <div class="tablewrap"><table id="priceTable"></table></div>
 </section>
 
 <section class="tab" id="tab-tailoring">
   <h2>Tailoring crafts at skill <span id="tailSkillEcho"></span></h2>
-  <p class="hint">Cost per point = mat cost ÷ skill-up chance. Net = expected disenchant value (or sale price) minus mat cost. Feeds = expected dust/essence per craft; your observed log overrides the seed table once a bracket has enough samples.</p>
+  <p class="hint">Cost per point = mat cost ÷ skill-up chance. Net = expected disenchant value (or sale price) minus mat cost. Feeds = expected dust/essence per craft; your observed log overrides the yield table once a bracket has enough samples.</p>
   <div class="row">
     <label><input type="checkbox" id="tailShowAll"> show crafts outside my skill window</label>
     <label>Value green crafts by <select id="tailValueMode"><option value="de">disenchant</option><option value="sell">AH sell price</option><option value="best">better of the two</option></select></label>
@@ -283,24 +321,41 @@ footer{color:var(--muted);font-size:12px;margin-top:16px}
 
 <section class="tab" id="tab-observed">
   <h2>Observed disenchants</h2>
-  <p class="hint">Once a bracket+slot has at least <input type="number" id="obsMin" min="1" max="500" value="20" style="width:70px"> samples, observed probabilities and quantities replace the seed table for it. The Session view has a tap logger; this table is the ledger.</p>
+  <p class="hint">Once a bracket+slot has at least <input type="number" id="obsMin" min="1" max="500" value="20" style="width:70px"> samples, observed probabilities and quantities replace the yield table for it. The Session view has a tap logger; this table is the ledger.</p>
   <div class="tablewrap"><table id="obsSummary"></table></div>
   <details><summary>Raw log</summary><div class="tablewrap"><table id="obsRaw"></table></div></details>
 </section>
+</main>
 
-<section class="tab" id="tab-data">
-  <h2>Data</h2>
-  <p class="hint">Recipes, the DE yield table (one row per item-level bracket × slot × quality, with per-mat chance and min–max; <code>source</code> is classic, forever or observed) and mats are plain JSON. Edit, then Apply. Export saves everything (characters, prices, log, packs) to the clipboard as JSON; paste into Import to restore. Reset returns to the seed tables.</p>
+<!-- ===================== DATA ===================== -->
+<main id="view-data" class="view" hidden>
+<section class="tab active">
+  <h2>Characters</h2>
   <div class="row">
-    <button class="primary" id="dataApply">Apply JSON</button>
+    <label>Character <select id="dChar"></select></label>
+    <label>Rename to <input id="dCharName" placeholder="new name" style="width:160px"></label>
+    <button id="dCharRename">Rename</button>
+    <button id="dCharDelete" class="ghost">Delete</button>
+    <span class="dim" id="dCharNote"></span>
+  </div>
+  <h2 style="margin-top:14px">This device</h2>
+  <div class="row">
+    <label>Theme <select id="theme"><option value="auto">Auto</option><option value="dark">Dark</option><option value="light">Light</option></select></label>
+    <span class="dim">Theme and the open tab are remembered per device and never shared.</span>
+  </div>
+  <h2 style="margin-top:14px">Shared document</h2>
+  <p class="hint">Export copies your state (characters, prices, observed log, packs, custom recipes, sale prices) as JSON; paste into Import to restore. Reset returns to defaults and clears the server's observed log. Recipe, mat and disenchant tables are not part of the document: they come from <code>data/recipes.json</code> (ForeverDB) on every device, or the built-in Classic seed when the page is opened from disk. Edits below are stored as overrides on top of that source.</p>
+  <div class="row">
     <button id="dataExport">Copy export JSON</button>
     <button id="dataImportBtn">Import from pasted JSON</button>
-    <button id="dataReset">Reset to seed</button>
+    <button id="dataReset">Reset everything</button>
     <span id="resetConfirm" hidden><span class="flag">Really reset everything?</span> <button id="dataResetYes">Yes, reset</button> <button id="dataResetNo" class="ghost">No</button></span>
   </div>
   <textarea id="jsonImport" placeholder="Paste an export here, then press Import" style="min-height:70px"></textarea>
+  <h2 style="margin-top:14px">Tables <small class="dim" id="srcNote"></small></h2>
+  <p class="hint">Edit and Apply. A recipe you change or add is kept as a <code>custom</code> override by id and survives a ForeverDB refresh; a mat's <code>vendor</code> price and a changed yield row are kept the same way. Thresholds used by the Now tab (≤<span id="thClose"></span> points = "close", scan older than <span id="thStale"></span> h = stale) are provisional until real prices exist.</p>
+  <div class="row"><button class="primary" id="dataApply">Apply tables</button> <span class="dim" id="overrideNote"></span> <button id="overrideClear" class="ghost">Drop all overrides</button></div>
   <h3>Tailoring recipes</h3>
-  <p class="hint">skill = [orange, yellow, green, gray]. output.quality: white | green | blue. output.reqLevel drives the DE bracket. Add <code>"custom": true</code> to a recipe you add so a ForeverDB refresh keeps it.</p>
   <textarea id="jsonTail"></textarea>
   <h3>Enchanting recipes</h3>
   <textarea id="jsonEnch"></textarea>
@@ -309,7 +364,7 @@ footer{color:var(--muted);font-size:12px;margin-top:16px}
   <h3>Mats</h3>
   <textarea id="jsonMats"></textarea>
 </section>
-</div>
+</main>
 
 <footer id="footer"></footer>
 <div class="toast" id="toast"></div>
@@ -319,18 +374,18 @@ footer{color:var(--muted);font-size:12px;margin-top:16px}
 // ---------- seed data ----------
 const SEED = {
 mats: [
- {id:'linen',name:'Linen Cloth',vendor:null},{id:'wool',name:'Wool Cloth',vendor:null},{id:'silk',name:'Silk Cloth',vendor:null},{id:'mageweave',name:'Mageweave Cloth',vendor:null},
- {id:'coarse_thread',name:'Coarse Thread',vendor:10},{id:'fine_thread',name:'Fine Thread',vendor:100},{id:'silken_thread',name:'Silken Thread',vendor:500},{id:'red_dye',name:'Red Dye',vendor:50},
- {id:'cerulean_dye',name:'Cerulean Dye',vendor:null},{id:'heavy_leather',name:'Heavy Leather',vendor:null},{id:'minor_mana_pot',name:'Minor Mana Potion',vendor:null},{id:'elixir_wisdom',name:'Elixir of Wisdom',vendor:null},
- {id:'small_lustrous_pearl',name:'Small Lustrous Pearl',vendor:null},{id:'shadowgem',name:'Shadowgem',vendor:null},{id:'silver_bar',name:'Silver Bar',vendor:null},
- {id:'mote',name:'Mote of Magic',vendor:20,flag:'vendor price unverified'},{id:'simple_wood',name:'Simple Wood',vendor:5},{id:'star_wood',name:'Star Wood',vendor:50},{id:'copper_rod',name:'Copper Rod',vendor:124},{id:'silver_rod',name:'Silver Rod',vendor:null},
- {id:'maple_seed',name:'Maple Seed',vendor:null},{id:'leaded_vial',name:'Leaded Vial',vendor:20},
- {id:'strange_dust',name:'Strange Dust',vendor:null,de:true},{id:'soul_dust',name:'Soul Dust',vendor:null,de:true},{id:'vision_dust',name:'Vision Dust',vendor:null,de:true},{id:'dream_dust',name:'Dream Dust',vendor:null,de:true},{id:'illusion_dust',name:'Illusion Dust',vendor:null,de:true},
- {id:'lme',name:'Lesser Magic Essence',vendor:null,de:true},{id:'gme',name:'Greater Magic Essence',vendor:null,de:true},{id:'lae',name:'Lesser Astral Essence',vendor:null,de:true},{id:'gae',name:'Greater Astral Essence',vendor:null,de:true},
- {id:'lmye',name:'Lesser Mystic Essence',vendor:null,de:true},{id:'gmye',name:'Greater Mystic Essence',vendor:null,de:true},{id:'lne',name:'Lesser Nether Essence',vendor:null,de:true},{id:'gne',name:'Greater Nether Essence',vendor:null,de:true},
- {id:'lee',name:'Lesser Eternal Essence',vendor:null,de:true},{id:'gee',name:'Greater Eternal Essence',vendor:null,de:true},
- {id:'sgs',name:'Small Glimmering Shard',vendor:null,de:true},{id:'lgs',name:'Large Glimmering Shard',vendor:null,de:true},{id:'sglow',name:'Small Glowing Shard',vendor:null,de:true},{id:'lglow',name:'Large Glowing Shard',vendor:null,de:true},
- {id:'srad',name:'Small Radiant Shard',vendor:null,de:true},{id:'lrad',name:'Large Radiant Shard',vendor:null,de:true},{id:'sbril',name:'Small Brilliant Shard',vendor:null,de:true},{id:'lbril',name:'Large Brilliant Shard',vendor:null,de:true},
+ {id:'linen',itemId:2589,name:'Linen Cloth',vendor:null},{id:'wool',itemId:2592,name:'Wool Cloth',vendor:null},{id:'silk',itemId:4306,name:'Silk Cloth',vendor:null},{id:'mageweave',itemId:4338,name:'Mageweave Cloth',vendor:null},
+ {id:'coarse_thread',itemId:2320,name:'Coarse Thread',vendor:10},{id:'fine_thread',itemId:2321,name:'Fine Thread',vendor:100},{id:'silken_thread',itemId:4291,name:'Silken Thread',vendor:500},{id:'red_dye',itemId:2604,name:'Red Dye',vendor:50},
+ {id:'cerulean_dye',name:'Cerulean Dye',vendor:null},{id:'heavy_leather',itemId:4234,name:'Heavy Leather',vendor:null},{id:'minor_mana_pot',itemId:2455,name:'Minor Mana Potion',vendor:null},{id:'elixir_wisdom',itemId:3383,name:'Elixir of Wisdom',vendor:null},
+ {id:'small_lustrous_pearl',itemId:5498,name:'Small Lustrous Pearl',vendor:null},{id:'shadowgem',itemId:1210,name:'Shadowgem',vendor:null},{id:'silver_bar',itemId:2842,name:'Silver Bar',vendor:null},
+ {id:'mote',name:'Mote of Magic',vendor:20,flag:'vendor price unverified'},{id:'simple_wood',itemId:4470,name:'Simple Wood',vendor:5},{id:'star_wood',itemId:11291,name:'Star Wood',vendor:50},{id:'copper_rod',itemId:6217,name:'Copper Rod',vendor:124},{id:'silver_rod',itemId:6338,name:'Silver Rod',vendor:null},
+ {id:'maple_seed',itemId:17034,name:'Maple Seed',vendor:null},{id:'leaded_vial',itemId:10290,name:'Leaded Vial',vendor:20},
+ {id:'strange_dust',itemId:10940,name:'Strange Dust',vendor:null,de:true},{id:'soul_dust',itemId:11083,name:'Soul Dust',vendor:null,de:true},{id:'vision_dust',itemId:11137,name:'Vision Dust',vendor:null,de:true},{id:'dream_dust',itemId:11176,name:'Dream Dust',vendor:null,de:true},{id:'illusion_dust',itemId:16204,name:'Illusion Dust',vendor:null,de:true},
+ {id:'lme',itemId:10938,name:'Lesser Magic Essence',vendor:null,de:true},{id:'gme',itemId:10939,name:'Greater Magic Essence',vendor:null,de:true},{id:'lae',itemId:10998,name:'Lesser Astral Essence',vendor:null,de:true},{id:'gae',itemId:11082,name:'Greater Astral Essence',vendor:null,de:true},
+ {id:'lmye',itemId:11134,name:'Lesser Mystic Essence',vendor:null,de:true},{id:'gmye',itemId:11135,name:'Greater Mystic Essence',vendor:null,de:true},{id:'lne',itemId:11174,name:'Lesser Nether Essence',vendor:null,de:true},{id:'gne',itemId:11175,name:'Greater Nether Essence',vendor:null,de:true},
+ {id:'lee',itemId:16202,name:'Lesser Eternal Essence',vendor:null,de:true},{id:'gee',itemId:16203,name:'Greater Eternal Essence',vendor:null,de:true},
+ {id:'sgs',itemId:10978,name:'Small Glimmering Shard',vendor:null,de:true},{id:'lgs',itemId:11084,name:'Large Glimmering Shard',vendor:null,de:true},{id:'sglow',itemId:11138,name:'Small Glowing Shard',vendor:null,de:true},{id:'lglow',itemId:11139,name:'Large Glowing Shard',vendor:null,de:true},
+ {id:'srad',itemId:11177,name:'Small Radiant Shard',vendor:null,de:true},{id:'lrad',itemId:11178,name:'Large Radiant Shard',vendor:null,de:true},{id:'sbril',itemId:14343,name:'Small Brilliant Shard',vendor:null,de:true},{id:'lbril',itemId:14344,name:'Large Brilliant Shard',vendor:null,de:true},
 ],
 tailoring: [
  {id:'bolt_linen',name:'Bolt of Linen Cloth',skill:[1,25,37,50],inputs:[{mat:'linen',qty:2}],output:{quality:'white',reqLevel:0,slot:'armor'},intermediate:true,sell:0},
@@ -402,30 +457,79 @@ const WAND_FLOORS=[{skill:10,name:'Lesser Magic Wand',lvl:5},{skill:70,name:'Gre
 const TAIL_GATES=[{skill:50,name:'Journeyman',lvl:10},{skill:125,name:'Expert',lvl:20},{skill:200,name:'Artisan',lvl:35}];
 
 // ---------- state ----------
-const KEY='wowf-loop-planner-v2';
+// Two layers. SRC is the table source (data/recipes.json from ForeverDB, or the Classic SEED on file://): never in the
+// shared document, cached per device. S is the shared document: what is yours — characters, prices, observed log,
+// packs, checklists, and OVERRIDES on top of SRC (custom recipes, sale prices, vendor prices, yield rows). T is the
+// effective tables rebuilt from SRC + overrides; all compute code reads T.
+const KEY='wowf-loop-planner-v2', SRC_KEY=KEY+'-src', PREFS_KEY=KEY+'-device', SYNCED_KEY=KEY+'-synced';
 const clone=o=>JSON.parse(JSON.stringify(o));
+const THRESH={closePts:15, staleHours:24, provisional:true};   // tuned in stage 4b against real prices
+const normName=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+function seedSrc(){ return {source:'seed',build:null,client:null,tailoring:clone(SEED.tailoring),enchanting:clone(SEED.enchanting),mats:clone(SEED.mats),de:clone(SEED.de),stats:null}; }
+let SRC=(()=>{ try{ const c=JSON.parse(localStorage.getItem(SRC_KEY)||'null'); if(c&&Array.isArray(c.tailoring)&&c.build) return c; }catch(e){} return seedSrc(); })();
 function freshState(){
-  return { mats:clone(SEED.mats), tailoring:clone(SEED.tailoring), enchanting:clone(SEED.enchanting), de:clone(SEED.de),
-    prices:clone(SEED.examplePrices), priceManual:{}, priceExample:true,
-    chars:{'Main':{tail:95,ench:72}}, activeChar:'Main', observed:[], obsDeleted:{}, packs:clone(PACKS_DEFAULT), checks:{},
-    ui:{theme:'auto',tailValueMode:'de',obsMin:20,planTailTo:150,planEnchTo:150,mode:null,pack:'de'} };
+  return { prices:clone(SEED.examplePrices), priceManual:{}, priceExample:true,
+    chars:{'Main':{tail:1,ench:1}}, activeChar:'Main', observed:[], obsDeleted:{}, packs:clone(PACKS_DEFAULT), checks:{},
+    custom:{tailoring:[],enchanting:[]}, sell:{}, matOverrides:{}, deOverrides:{}, matAliases:{},
+    ui:{tailValueMode:'de',obsMin:20,planTailTo:150,planEnchTo:150,pack:'de',ceil:70} };
 }
-// normalize: fill any key a stored document lacks (older versions, hand edits, a fresh server)
-function normalize(s){ const f=freshState(); for(const k of Object.keys(f)) if(s[k]===undefined) s[k]=f[k]; for(const k of Object.keys(f.ui)) if(s.ui[k]===undefined) s.ui[k]=f.ui[k]; for(const k of Object.keys(PACKS_DEFAULT)) if(!s.packs[k]) s.packs[k]=clone(PACKS_DEFAULT[k]); if(s.packs.farm&&!PACKS_DEFAULT.farm){ delete s.packs.farm; delete (s.checks||{}).farm; if(s.ui.pack==='farm') s.ui.pack='de'; } if(!s.chars[s.activeChar]) s.activeChar=Object.keys(s.chars)[0]; if(!Array.isArray(s.observed)) s.observed=[]; if(!Array.isArray(s.de)||!s.de.length||s.de[0].results===undefined){ s.de=clone(SEED.de); delete s.ui.loadedDeBuild; } return s; }
-function loadLocal(){
-  try{
-    let raw=localStorage.getItem(KEY);
-    if(!raw){ const old=localStorage.getItem('wowf-loop-planner-v1'); if(old){ const o=JSON.parse(old); const f=freshState(); Object.assign(f,{mats:o.mats||f.mats,tailoring:o.tailoring||f.tailoring,enchanting:o.enchanting||f.enchanting,de:o.de||f.de,prices:o.prices&&Object.keys(o.prices).length?o.prices:f.prices,priceManual:o.priceManual||{},observed:o.observed||[]}); if(o.prices&&Object.keys(o.prices).length) f.priceExample=false; if(o.skills) f.chars.Main={tail:o.skills.tail||1,ench:o.skills.ench||1}; Object.assign(f.ui,o.ui||{}); return f; } }
-    if(raw) return normalize(JSON.parse(raw));
-  }catch(e){}
-  return freshState();
+// ---- aliases: the same material under two ids (seed `lme` vs ForeverDB `lesser_magic_essence`). Matched by item id
+// where both sides have one, else by normalised name. Every key that names a mat is rewritten, prices first.
+function computeAliases(src){
+  const out={}; const byItem=new Map(), byName=new Map();
+  for(const m of src.mats){ if(m.itemId) byItem.set(m.itemId,m.id); byName.set(normName(m.name),m.id); }
+  const consider=(id,name,itemId)=>{ const hit=(itemId&&byItem.get(itemId))||byName.get(normName(name)); if(hit&&hit!==id) out[id]=hit; };
+  for(const m of SEED.mats) consider(m.id,m.name,m.itemId);
+  const rbyName=new Map(); for(const r of [...src.tailoring,...src.enchanting]) rbyName.set(normName(r.name),r.id);
+  for(const r of [...SEED.tailoring,...SEED.enchanting]){ const hit=rbyName.get(normName(r.name)); if(hit&&hit!==r.id) out[r.id]=hit; }
+  return out;
 }
-let S=loadLocal();
+function applyAliases(s,al){
+  const map=id=>al[id]||id; let n=0;
+  const moveKeys=(obj,prefer)=>{ for(const [k,v] of Object.entries(obj)){ const nk=map(k); if(nk===k) continue; if(obj[nk]===undefined||prefer==='old') obj[nk]=v; delete obj[k]; n++; } };
+  moveKeys(s.prices); moveKeys(s.priceManual); moveKeys(s.sell); moveKeys(s.matOverrides);
+  for(const o of s.observed) if(al[o.mat]){ o.mat=al[o.mat]; n++; }
+  for(const list of Object.values(s.custom)) for(const r of list){ for(const i of r.inputs||[]) if(al[i.mat]){ i.mat=al[i.mat]; n++; } if(al[r.id]) r.id=al[r.id]; }
+  for(const row of Object.values(s.deOverrides)) for(const x of row.results||[]) if(al[x.mat]){ x.mat=al[x.mat]; n++; }
+  return n;
+}
+// ---- effective tables
+let T={tailoring:[],enchanting:[],mats:[],de:[]};
+function rebuildTables(){
+  const over=(list,custom)=>{ const out=clone(list); for(const c of custom||[]){ const i=out.findIndex(r=>r.id===c.id); const rec=Object.assign(clone(c),{custom:true}); if(i>=0) out[i]=rec; else out.push(rec); } for(const r of out) r.sell=S.sell[r.id]||0; return out; };
+  T.tailoring=over(SRC.tailoring,S.custom.tailoring); T.enchanting=over(SRC.enchanting,S.custom.enchanting);
+  T.mats=clone(SRC.mats); for(const [id,o] of Object.entries(S.matOverrides)){ const m=T.mats.find(x=>x.id===id); if(m) Object.assign(m,o); else T.mats.push(Object.assign({id,name:id,vendor:null,de:false},o)); }
+  // make sure every custom recipe's inputs resolve to something; an unknown id stays unknown (B2 flags it), nothing is invented
+  T.de=clone(SRC.de); for(const [id,row] of Object.entries(S.deOverrides)){ const i=T.de.findIndex(x=>x.id===id); if(i>=0) T.de[i]=Object.assign(clone(row),{source:'custom'}); else T.de.push(Object.assign(clone(row),{id,source:'custom'})); }
+}
+// ---- normalize: fill missing keys, migrate the pre-4a document (tables lived inside it), prune device-only keys
+function normalize(s){
+  const f=freshState(); for(const k of Object.keys(f)) if(s[k]===undefined) s[k]=f[k]; for(const k of Object.keys(f.ui)) if(s.ui[k]===undefined) s.ui[k]=f.ui[k];
+  for(const k of Object.keys(PACKS_DEFAULT)) if(!s.packs[k]) s.packs[k]=clone(PACKS_DEFAULT[k]);
+  if(s.packs.farm&&!PACKS_DEFAULT.farm){ delete s.packs.farm; delete (s.checks||{}).farm; if(s.ui.pack==='farm') s.ui.pack='de'; }
+  if(!s.chars[s.activeChar]) s.activeChar=Object.keys(s.chars)[0]; if(!Array.isArray(s.observed)) s.observed=[];
+  if(!s.custom.tailoring) s.custom.tailoring=[]; if(!s.custom.enchanting) s.custom.enchanting=[];
+  if(Array.isArray(s.tailoring)||Array.isArray(s.enchanting)){            // pre-4a: lift what was yours out of the embedded tables
+    for(const prof of ['tailoring','enchanting']) for(const r of s[prof]||[]){ if(r.custom&&!s.custom[prof].some(c=>c.id===r.id)) s.custom[prof].push(clone(r)); if(r.sell>0&&!s.sell[r.id]) s.sell[r.id]=r.sell; }
+    if(Array.isArray(s.mats)) for(const m of s.mats){ const src=SRC.mats.find(x=>x.id===m.id)||SEED.mats.find(x=>x.id===m.id); if(src&&m.vendor!=null&&m.vendor!==src.vendor) s.matOverrides[m.id]={vendor:m.vendor}; }
+    delete s.tailoring; delete s.enchanting; delete s.mats; delete s.de;
+  }
+  delete s.ui.mode; delete s.ui.theme; delete s.ui.loadedBuild; delete s.ui.loadedDeBuild; delete s.ui.fdbClient;
+  Object.assign(s.matAliases,computeAliases(SRC)); applyAliases(s,s.matAliases);
+  return s;
+}
+function loadLocal(){ try{ const raw=localStorage.getItem(KEY); if(raw) return normalize(JSON.parse(raw)); }catch(e){} return normalize(freshState()); }
+let S=loadLocal(); rebuildTables();
 const cur=()=>S.chars[S.activeChar];
 
+// ---------- device prefs (never shared): open tab, plan sub-tab, theme, legend bodies ----------
+function readPrefs(){ try{ return JSON.parse(localStorage.getItem(PREFS_KEY)||'{}')||{}; }catch(e){ return {}; } }
+let prefs=readPrefs();
+if(!prefs.tab) prefs.tab=matchMedia('(pointer:coarse)').matches?'now':'plan';   // chosen once per device at first load; rotation and resize never change it
+if(!prefs.planTab) prefs.planTab='prices'; if(!prefs.theme) prefs.theme='auto';
+function savePrefs(){ try{ localStorage.setItem(PREFS_KEY,JSON.stringify(prefs)); }catch(e){} }
+
 // ---------- state API (shared document on the LAN; localStorage is the fallback) ----------
-// Same origin: nginx proxies /api/ to the state container; `state_api.py --static .` serves both in dev.
-// On file:// there is no API and the page runs on localStorage alone, exactly as before.
 const API=/^https?:/.test(location.protocol)?'api':null;
 const sync={online:false,pending:false,inFlight:false,timer:null,poll:null,lastErr:null,conflicts:0,obsQueued:0};
 function setSync(mode){
@@ -435,49 +539,37 @@ function setSync(mode){
   if(sync.online){ b.className='badge on'; b.textContent='synced · rev '+(S.rev||0); b.title='Shared state on the LAN; every device sees this document. Last server write '+(S.updatedAt||'—'); return; }
   b.className='badge off'; b.textContent='offline'; b.title='State API unreachable ('+(sync.lastErr||'no response')+'). Edits are kept in this browser and pushed when it comes back.';
 }
-// Mode and theme are per device (the iPad stays in Session while the desk stays in Plan), so they never travel in the shared doc.
-const PREFS_KEY=KEY+'-device', SYNCED_KEY=KEY+'-synced';
-function readPrefs(){ try{ return JSON.parse(localStorage.getItem(PREFS_KEY)||'{}')||{}; }catch(e){ return {}; } }
-function applyPrefs(s){ const p=readPrefs(); if(p.mode) s.ui.mode=p.mode; if(p.theme) s.ui.theme=p.theme; return s; }
-function sharedDoc(){ const d=Object.assign({},S,{ui:Object.assign({},S.ui)}); delete d.ui.mode; delete d.ui.theme; return d; }
-function saveLocal(){ try{ localStorage.setItem(KEY,JSON.stringify(S)); localStorage.setItem(PREFS_KEY,JSON.stringify({mode:S.ui.mode,theme:S.ui.theme})); }catch(e){} }
-// ---- change tracking: a snapshot of the document as the server last confirmed it, one entry per path.
-// Plain objects are split two levels deep (chars.Main.tail, prices.linen, ui.pack, packs.de.slots, checks.de.0);
-// arrays and anything deeper are tracked whole. So the iPad bumping Enchanting and the desk bumping Tailoring on
-// the same character are two different paths and never clobber each other.
-// observed/obsDeleted are the server's to merge (union + tombstones) and are never re-applied from here.
-const SKIP_PATHS=new Set(['observed','obsDeleted','rev','updatedAt']), SEP='\u0001';
+function sharedDoc(){ const d=Object.assign({},S); delete d.tailoring; delete d.enchanting; delete d.mats; delete d.de; return d; }
+function saveLocal(){ try{ localStorage.setItem(KEY,JSON.stringify(sharedDoc())); }catch(e){} savePrefs(); }
+// ---- change tracking: snapshot of the document as the server last confirmed it, one entry per path (two levels deep
+// for plain objects, arrays whole). The iPad bumping Enchanting and the desk bumping Tailoring on the same character are
+// two paths and never clobber each other. observed/obsDeleted are the server's to merge and are never re-applied.
+const SKIP_PATHS=new Set(['observed','obsDeleted','rev','updatedAt']), SEP='\u0001', SNAP_DEPTH=2;
 let synced=(()=>{ try{ return JSON.parse(localStorage.getItem(SYNCED_KEY)||'{}')||{}; }catch(e){ return {}; } })();
-const DEVICE_PATHS=new Set(['ui'+SEP+'mode','ui'+SEP+'theme']), SNAP_DEPTH=2;
 const isPlain=v=>v&&typeof v==='object'&&!Array.isArray(v);
-function snapshotOf(doc){ const out={}; (function walk(o,prefix,depth){ for(const [k,v] of Object.entries(o)){ const pk=prefix+k; if(!prefix&&SKIP_PATHS.has(k)) continue; if(DEVICE_PATHS.has(pk)) continue; if(isPlain(v)&&depth<SNAP_DEPTH){ out[pk+SEP]='{'; walk(v,pk+SEP,depth+1); } else out[pk]=JSON.stringify(v); } })(doc,'',0); return out; }
+function snapshotOf(doc){ const out={}; (function walk(o,prefix,depth){ for(const [k,v] of Object.entries(o)){ const pk=prefix+k; if(!prefix&&SKIP_PATHS.has(k)) continue; if(isPlain(v)&&depth<SNAP_DEPTH){ out[pk+SEP]='{'; walk(v,pk+SEP,depth+1); } else out[pk]=JSON.stringify(v); } })(doc,'',0); return out; }
 function markSynced(doc){ synced=snapshotOf(doc); try{ localStorage.setItem(SYNCED_KEY,JSON.stringify(synced)); }catch(e){} }
-// First contact (no snapshot yet): what this browser holds is defaults or pre-sync data, not edits — the server wins.
-if(API&&!localStorage.getItem(SYNCED_KEY)) markSynced(sharedDoc());
+if(API&&!localStorage.getItem(SYNCED_KEY)) markSynced(sharedDoc());   // first contact: what this browser holds is defaults, not edits
 function changedPaths(){ const now=snapshotOf(sharedDoc()); const keys=new Set([...Object.keys(now),...Object.keys(synced)]); return [...keys].filter(k=>now[k]!==synced[k]); }
 function getPath(doc,p){ const parts=p.split(SEP); const marker=parts[parts.length-1]===''; if(marker) parts.pop(); let cur=doc; for(const k of parts){ if(!isPlain(cur)) return undefined; cur=cur[k]; } return marker?(isPlain(cur)?{}:undefined):cur; }
 function setPath(doc,p,v){ const parts=p.split(SEP); const marker=parts[parts.length-1]===''; if(marker) parts.pop(); const last=parts.pop(); let cur=doc; for(const k of parts){ if(!isPlain(cur[k])) cur[k]={}; cur=cur[k]; } if(marker){ if(!isPlain(cur[last])) cur[last]={}; return; } if(v===undefined) delete cur[last]; else cur[last]=v; }
-// Take the server's document, re-apply only the paths this browser changed since it last synced, union any
-// taps that never reached the server (and aren't tombstoned), then render. Returns how many of ours were re-applied.
 function mergeRemote(remote){
   const mine=changedPaths(); const local=sharedDoc(); const base=normalize(remote); markSynced(base);
   for(const p of mine){ const v=getPath(local,p); setPath(base,p,v===undefined?undefined:clone(v)); }
   const tomb=base.obsDeleted||{}; const have=new Set(base.observed.map(obsKey)); for(const o of S.observed){ const k=obsKey(o); if(!have.has(k)&&!tomb[k]){ base.observed.push(o); have.add(k); } }
   base.observed.sort((a,b)=>(a.ts||0)-(b.ts||0));
-  S=applyPrefs(base); saveLocal(); syncHeader(); applyTheme(); if(S.ui.mode) setMode(S.ui.mode,true); renderAll(); return mine.length;
+  S=base; rebuildTables(); saveLocal(); syncHeader(); renderAll(); return mine.length;
 }
 function save(){ saveLocal(); scheduleSync(); }
 function scheduleSync(){ if(!API) return; sync.pending=true; clearTimeout(sync.timer); sync.timer=setTimeout(flushSync,400); setSync('saving'); }
 async function apiFetch(path,opts){ const r=await fetch(API+path,Object.assign({cache:'no-store'},opts||{})); if(!r.ok) throw new Error('HTTP '+r.status); return r; }
 async function flushSync(keepalive){
   if(!API||sync.inFlight) return; sync.inFlight=true; sync.pending=false; clearTimeout(sync.timer);
-  // nothing in the shared document moved (a mode or theme switch, say): no PUT, no rev churn on other devices
   if(sync.online&&(S.rev||0)>0&&!sync.obsQueued&&changedPaths().length===0){ sync.inFlight=false; setSync(); return; }
   try{
     const doc=sharedDoc();
     const r=await fetch(API+'/state',{method:'PUT',cache:'no-store',headers:{'Content-Type':'application/json','If-Match':String(S.rev||0)},body:JSON.stringify(doc),keepalive:!!keepalive});
     if(r.status===409){
-      // someone else wrote since we loaded: take theirs, put our changed paths back on top, try again (bounded)
       const remote=await r.json(); sync.online=true; sync.lastErr=null; sync.conflicts++;
       const n=mergeRemote(remote);
       if(sync.conflicts<=3){ sync.pending=true; } else { sync.conflicts=0; toast('Could not save: another device keeps writing. Reload and try again.'); }
@@ -485,26 +577,22 @@ async function flushSync(keepalive){
     } else if(!r.ok){ throw new Error('HTTP '+r.status); }
     else {
       const j=await r.json(); S.rev=j.rev; S.updatedAt=j.updatedAt; sync.online=true; sync.lastErr=null; sync.conflicts=0; sync.obsQueued=0;
-      if(Array.isArray(j.observed)){ const changed=j.observed.length!==S.observed.length; S.observed=j.observed; S.obsDeleted=j.obsDeleted||{}; if(changed){ renderObserved(); renderSession(); renderShuffle(); } }
+      if(Array.isArray(j.observed)){ const changed=j.observed.length!==S.observed.length; S.observed=j.observed; S.obsDeleted=j.obsDeleted||{}; if(changed){ renderObserved(); renderSession(); renderNow(); renderShuffle(); } }
       markSynced(doc); saveLocal();
     }
   }catch(e){ sync.online=false; sync.lastErr=e.message; saveLocal(); }
   finally{ sync.inFlight=false; setSync(); if(sync.pending) flushSync(); }
 }
-// A rev adopted from a POST/DELETE reply is only trusted when it is exactly the next one; a bigger jump means
-// another device wrote in between, and leaving our rev stale makes the next PUT 409 and merge instead of clobber.
 function adoptRev(j){ if(j&&j.rev===(S.rev||0)+1){ S.rev=j.rev; S.updatedAt=j.updatedAt||S.updatedAt; } sync.online=true; sync.lastErr=null; setSync(); }
-// One tap, one POST. No whole-document PUT: the log is the server's to merge, and a PUT from a device that is
-// behind would carry its stale copy of everything else.
 function postObserved(o){ if(!API) return; apiFetch('/observed',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o),keepalive:true}).then(r=>r.json()).then(adoptRev).catch(e=>{ sync.obsQueued++; sync.online=false; sync.lastErr=e.message; setSync(); }); }
 function deleteObserved(body){ if(!API) return Promise.resolve(); return apiFetch('/observed',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json()).then(adoptRev).catch(e=>{ sync.online=false; sync.lastErr=e.message; setSync(); }); }
 async function loadRemote(){
   if(!API) { setSync(); return; }
   try{
     const r=await apiFetch('/state');
-    if(r.status===204){ sync.online=true; synced={}; scheduleSync(); return; }   // fresh server: seed it from this browser
+    if(r.status===204){ sync.online=true; synced={}; scheduleSync(); return; }
     const remote=await r.json(); sync.online=true; sync.lastErr=null;
-    if(mergeRemote(remote)>0) scheduleSync();                                        // edits made while offline go back up
+    if(mergeRemote(remote)>0) scheduleSync();
   }catch(e){ sync.online=false; sync.lastErr=e.message; }
   setSync();
 }
@@ -529,20 +617,20 @@ function parseMoney(str){ if(str==null) return 0; str=String(str).trim().toLower
 function fmt(c){ if(c==null||!isFinite(c)) return '—'; const neg=c<0; c=Math.round(Math.abs(c)); const g=Math.floor(c/10000),s=Math.floor((c%10000)/100),cp=c%100; let o=''; if(g) o+=g+'g '; if(g||s) o+=s+'s '; o+=cp+'c'; return (neg?'−':'')+o.trim(); }
 function fmtShort(c){ if(c==null||!isFinite(c)) return '—'; c=Math.round(c); const g=Math.floor(c/10000),s=Math.round((c%10000)/100); return g?`${g}g${s?s+'s':''}`:`${s}s`; }
 function fmtQty(q){ return (Math.round(q*100)/100).toString(); }
-function matById(id){ return S.mats.find(m=>m.id===id); }
-function matName(id){ const m=matById(id); if(m) return m.name; const r=S.tailoring.find(t=>t.id===id); return r?r.name:id; }
+function matById(id){ return T.mats.find(m=>m.id===id); }
+function matName(id){ const m=matById(id); if(m) return m.name; const r=T.tailoring.find(t=>t.id===id); return r?r.name:id; }
 function skillChance(skill,sk){ const [o,y,g,gr]=sk; if(skill<o) return 0; if(skill<y) return 1; if(skill>=gr) return 0; return Math.max(0,(gr-skill)/(gr-y)); }
 function skillColor(skill,sk){ const [o,y,g,gr]=sk; if(skill<o) return 'locked'; if(skill<y) return 'orange'; if(skill<g) return 'yellow'; if(skill<gr) return 'green'; return 'gray'; }
-function deRow(lvl,kind,quality){ return S.de.find(b=>b.quality===quality&&b.kind===kind&&lvl>=b.min&&lvl<=b.max)||null; }
-function bracketFor(lvl){ const b=S.de.find(x=>lvl>=x.min&&lvl<=x.max); return b?{min:b.min,max:b.max,key:b.min+'-'+b.max}:null; }
-function deBrackets(){ const seen=new Map(); for(const b of S.de){ const k=b.min+'-'+b.max; if(!seen.has(k)) seen.set(k,{min:b.min,max:b.max,key:k}); } return [...seen.values()].sort((a,b)=>a.min-b.min); }
+function deRow(lvl,kind,quality){ return T.de.find(b=>b.quality===quality&&b.kind===kind&&lvl>=b.min&&lvl<=b.max)||null; }
+function bracketFor(lvl){ const b=T.de.find(x=>lvl>=x.min&&lvl<=x.max); return b?{min:b.min,max:b.max,key:b.min+'-'+b.max}:null; }
+function deBrackets(){ const seen=new Map(); for(const b of T.de){ const k=b.min+'-'+b.max; if(!seen.has(k)) seen.set(k,{min:b.min,max:b.max,key:k}); } return [...seen.values()].sort((a,b)=>a.min-b.min); }
 function outLevel(o){ return o.itemLevel||(o.reqLevel?o.reqLevel+5:1); }   // item level; the +5 fallback is a Classic rule of thumb for seed rows
 function rowText(row){ return row?row.results.filter(r=>r.chance>0).map(r=>`${matName(r.mat)} ${Math.round(r.chance*100)}%${r.max>1?` ×${r.min}–${r.max}`:''}`).join(' · '):'—'; }
 function ahPrice(id){ const m=matById(id); if(m&&m.vendor!=null) return m.vendor; const p=S.prices[id]; return p?p:0; }
 function isUnpriced(id){ const m=matById(id); if(m&&m.vendor!=null) return false; return !(S.prices[id]>0); }
-function inputCost(id,depth=0){ const m=matById(id); if(m) return ahPrice(id); const r=S.tailoring.find(t=>t.id===id); if(!r||depth>3) return 0; /* unknown id: 0 here, but recipeUnpriced() flags it so no caller treats the recipe as priced */ const crafted=r.inputs.reduce((a,i)=>a+inputCost(i.mat,depth+1)*i.qty,0); const ah=S.prices[id]||0; return ah>0?Math.min(ah,crafted):crafted; }
+function inputCost(id,depth=0){ const m=matById(id); if(m) return ahPrice(id); const r=T.tailoring.find(t=>t.id===id); if(!r||depth>3) return 0; /* unknown id: 0 here, but recipeUnpriced() flags it so no caller treats the recipe as priced */ const crafted=r.inputs.reduce((a,i)=>a+inputCost(i.mat,depth+1)*i.qty,0); const ah=S.prices[id]||0; return ah>0?Math.min(ah,crafted):crafted; }
 function recipeMatCost(r){ return r.inputs.reduce((a,i)=>a+inputCost(i.mat)*i.qty,0); }
-function recipeUnpriced(r,depth=0){ const out=[]; for(const i of r.inputs){ const m=matById(i.mat); if(m){ if(isUnpriced(i.mat)) out.push(i.mat); } else { const sub=S.tailoring.find(t=>t.id===i.mat); if(sub&&depth<3){ if(!(S.prices[sub.id]>0)) out.push(...recipeUnpriced(sub,depth+1)); } else out.push(i.mat); } } return [...new Set(out)]; }
+function recipeUnpriced(r,depth=0){ const out=[]; for(const i of r.inputs){ const m=matById(i.mat); if(m){ if(isUnpriced(i.mat)) out.push(i.mat); } else { const sub=T.tailoring.find(t=>t.id===i.mat); if(sub&&depth<3){ if(!(S.prices[sub.id]>0)) out.push(...recipeUnpriced(sub,depth+1)); } else out.push(i.mat); } } return [...new Set(out)]; }
 function observedStats(){ const st={}; for(const o of S.observed){ const b=bracketFor(o.lvl); if(!b) continue; const k=b.key+'|'+o.slot+'|'+o.quality; st[k]=st[k]||{n:0,mats:{}}; st[k].n++; st[k].mats[o.mat]=st[k].mats[o.mat]||{count:0,qty:0}; st[k].mats[o.mat].count++; st[k].mats[o.mat].qty+=o.qty; } return st; }
 function expectedDE(lvl,slot,quality){
   const b=bracketFor(lvl); if(!b) return {mats:{},source:'none',n:0,row:null};
@@ -553,7 +641,7 @@ function expectedDE(lvl,slot,quality){
   return {mats,source:row?row.source:'none',n:st[k]?st[k].n:0,row};
 }
 function deValue(mats){ return Object.entries(mats).reduce((a,[id,q])=>a+ahPrice(id)*q,0); }
-function effectivePrices(){ const eff={}; for(const r of S.tailoring){ if(r.output.quality==='white'||r.output.bop) continue; const de=expectedDE(outLevel(r.output),r.output.slot,r.output.quality); const cost=recipeMatCost(r); for(const [id,q] of Object.entries(de.mats)){ if(q<=0) continue; const by=Object.entries(de.mats).filter(([i])=>i!==id).reduce((a,[i,qq])=>a+ahPrice(i)*qq,0); const price=Math.max(0,(cost-by)/q); if(!eff[id]||price<eff[id].price) eff[id]={price,via:r.name,qty:q,cost}; } } return eff; }
+function effectivePrices(){ const eff={}; for(const r of T.tailoring){ if(r.output.quality==='white'||r.output.bop) continue; const de=expectedDE(outLevel(r.output),r.output.slot,r.output.quality); const cost=recipeMatCost(r); for(const [id,q] of Object.entries(de.mats)){ if(q<=0) continue; const by=Object.entries(de.mats).filter(([i])=>i!==id).reduce((a,[i,qq])=>a+ahPrice(i)*qq,0); const price=Math.max(0,(cost-by)/q); if(!eff[id]||price<eff[id].price) eff[id]={price,via:r.name,qty:q,cost}; } } return eff; }
 function matPriceForEnch(id,eff,useCrafted){ const ah=ahPrice(id); const m=matById(id); if(!useCrafted||!m||!m.de||!eff[id]) return {price:ah,src:(m&&m.vendor!=null)?'vendor':'AH'}; if(ah>0&&ah<=eff[id].price) return {price:ah,src:'AH'}; if(ah===0&&eff[id].price===0) return {price:0,src:'unpriced'}; return {price:eff[id].price,src:'craft: '+eff[id].via}; }
 function tailRow(r,skill,mode){
   const cost=recipeMatCost(r); const ch=skillChance(skill,r.skill); const col=skillColor(skill,r.skill);
@@ -564,8 +652,8 @@ function tailRow(r,skill,mode){
 function enchRow(r,skill,eff,useCrafted){ const ch=skillChance(skill,r.skill); const col=skillColor(skill,r.skill); let cost=0; const srcs=[],unp=[]; for(const i of r.inputs){ const p=matPriceForEnch(i.mat,eff,useCrafted); cost+=p.price*i.qty; if(p.src.startsWith('craft')) srcs.push(matName(i.mat)+' via '+p.src.slice(7)); if(p.src==='unpriced'||(p.price===0&&isUnpriced(i.mat))||!matById(i.mat)) unp.push(i.mat); } const credit=r.produces==='item'?(r.sell||0):0; const net=cost-credit; return {ch,col,cost,credit,net,cpp:ch>0?net/ch:Infinity,srcs,unp}; }
 function selfSlot(name){ const n=name.toLowerCase(); if(/bracer/.test(n)) return 9; if(/chest/.test(n)) return 5; if(/cloak/.test(n)) return 15; if(/boots/.test(n)) return 8; if(/gloves/.test(n)) return 10; if(/shield/.test(n)) return 17; if(/weapon/.test(n)) return 16; return null; }
 // cheapest self-castable enchants at current skill (for macros and the "this stop" card)
-function bestEnchants(){ const skill=cur().ench; const eff=effectivePrices(); return S.enchanting.filter(r=>!r.consumesRod&&r.produces!=='item'&&selfSlot(r.name)&&skillChance(skill,r.skill)>0).map(r=>({r,x:enchRow(r,skill,eff,true),slot:selfSlot(r.name)})).filter(e=>e.x.unp.length===0&&isFinite(e.x.cpp)).sort((a,b)=>a.x.cpp-b.x.cpp); }
-function bestTailoring(){ const skill=cur().tail; return S.tailoring.filter(r=>skillChance(skill,r.skill)>0).map(r=>({r,x:tailRow(r,skill,'de')})).sort((a,b)=>a.x.netcpp-b.x.netcpp); }
+function bestEnchants(){ const skill=cur().ench; const eff=effectivePrices(); return T.enchanting.filter(r=>!r.consumesRod&&r.produces!=='item'&&selfSlot(r.name)&&skillChance(skill,r.skill)>0).map(r=>({r,x:enchRow(r,skill,eff,true),slot:selfSlot(r.name)})).filter(e=>e.x.unp.length===0&&isFinite(e.x.cpp)).sort((a,b)=>a.x.cpp-b.x.cpp); }
+function bestTailoring(){ const skill=cur().tail; return T.tailoring.filter(r=>skillChance(skill,r.skill)>0).map(r=>({r,x:tailRow(r,skill,'de')})).sort((a,b)=>a.x.netcpp-b.x.netcpp); }
 // This Stop's pick: skip bind-on-pickup outputs (can't be sold or mailed) and anything with an unpriced input (its cost is a lie); the sort already nets DE value, so a cheap white beats a losing green
 function craftNow(){ const all=bestTailoring(); const ok=all.filter(x=>!x.r.output.bop&&x.x.unp.length===0&&isFinite(x.x.netcpp)); const skipped=all.filter(x=>!ok.includes(x)); return {pick:ok[0]||null,skipped,any:all.length>0}; }
 function nextFloor(){ return WAND_FLOORS.find(f=>f.skill>cur().ench)||null; }
@@ -574,16 +662,16 @@ function nextGate(){ return TAIL_GATES.find(f=>f.skill>cur().tail)||null; }
 // ---------- solvers ----------
 function solveTailoring(from,to,mode,disenchantAll){
   const crafts={},bank={},cloth={},log=[]; let cash=0,value=0;
-  for(let s=from;s<to;s++){ let best=null; for(const r of S.tailoring){ const ch=skillChance(s,r.skill); if(ch<=0) continue; const x=tailRow(r,s,'de'); if(x.unp.length||r.output.bop) continue; const net=x.cost-(disenchantAll?x.value:0); const score=mode==='net'?(net<0?net:net/ch):x.cost/ch; if(!best||score<best.score||(score===best.score&&ch>best.ch)) best={r,score,ch,x}; }
+  for(let s=from;s<to;s++){ let best=null; for(const r of T.tailoring){ const ch=skillChance(s,r.skill); if(ch<=0) continue; const x=tailRow(r,s,'de'); if(x.unp.length||r.output.bop) continue; const net=x.cost-(disenchantAll?x.value:0); const score=mode==='net'?(net<0?net:net/ch):x.cost/ch; if(!best||score<best.score||(score===best.score&&ch>best.ch)) best={r,score,ch,x}; }
     if(!best){ log.push(`No craft available at skill ${s}; stopped.`); break; }
     const n=1/best.ch; crafts[best.r.id]=(crafts[best.r.id]||0)+n; cash+=best.x.cost*n;
     if(disenchantAll&&best.r.output.quality!=='white'){ for(const [id,q] of Object.entries(best.x.de.mats)) bank[id]=(bank[id]||0)+q*n; value+=best.x.dev*n; }
-    const addCloth=(inputs,mult)=>{ for(const i of inputs){ const sub=S.tailoring.find(t=>t.id===i.mat); if(sub) addCloth(sub.inputs,mult*i.qty); else cloth[i.mat]=(cloth[i.mat]||0)+i.qty*mult; } }; addCloth(best.r.inputs,n); }
+    const addCloth=(inputs,mult)=>{ for(const i of inputs){ const sub=T.tailoring.find(t=>t.id===i.mat); if(sub) addCloth(sub.inputs,mult*i.qty); else cloth[i.mat]=(cloth[i.mat]||0)+i.qty*mult; } }; addCloth(best.r.inputs,n); }
   return {crafts,bank,cash,value,cloth,log};
 }
 function solveEnchanting(from,to,bank){
   const eff=effectivePrices(); const crafts={},need={},log=[]; let cash=0; bank=Object.assign({},bank);
-  for(let s=from;s<to;s++){ let best=null; for(const r of S.enchanting){ if(r.consumesRod) continue; const ch=skillChance(s,r.skill); if(ch<=0) continue; if(r.inputs.some(i=>!matById(i.mat)&&!S.tailoring.find(t=>t.id===i.mat))) continue; let c=0; for(const i of r.inputs) c+=i.qty*matPriceForEnch(i.mat,eff,true).price; c-= r.produces==='item'?(r.sell||0):0; const score=c/ch; if(!best||score<best.score||(score===best.score&&ch>best.ch)) best={r,score,ch}; }
+  for(let s=from;s<to;s++){ let best=null; for(const r of T.enchanting){ if(r.consumesRod) continue; const ch=skillChance(s,r.skill); if(ch<=0) continue; if(r.inputs.some(i=>!matById(i.mat)&&!T.tailoring.find(t=>t.id===i.mat))) continue; let c=0; for(const i of r.inputs) c+=i.qty*matPriceForEnch(i.mat,eff,true).price; c-= r.produces==='item'?(r.sell||0):0; const score=c/ch; if(!best||score<best.score||(score===best.score&&ch>best.ch)) best={r,score,ch}; }
     if(!best){ log.push(`No recipe available at skill ${s}; stopped.`); break; }
     const n=1/best.ch; crafts[best.r.id]=(crafts[best.r.id]||0)+n;
     for(const i of best.r.inputs){ const q=i.qty*n; const have=bank[i.mat]||0; const fromBank=Math.min(have,q); bank[i.mat]=have-fromBank; const buy=q-fromBank; if(buy>0){ need[i.mat]=(need[i.mat]||0)+buy; cash+=buy*ahPrice(i.mat); } }
@@ -594,10 +682,10 @@ function solveEnchanting(from,to,bank){
 // ---------- macros ----------
 function placeholders(){
   const be=bestEnchants(); const e1=be[0],e2=be[1]; const fl=nextFloor();
-  const ceil=(+($('shCeil')&&$('shCeil').value)||70)/100;
+  const ceil=(S.ui.ceil||70)/100;
   const ceilings=deBrackets().slice(0,5).map(b=>`${b.min}-${b.max} A ${fmtShort(deValue(expectedDE(b.min,'armor','green').mats)*ceil)} W ${fmtShort(deValue(expectedDE(b.min,'weapon','green').mats)*ceil)}`).join(' | ');
   let need='',surplus=''; if(fl){ const E=solveEnchanting(cur().ench,fl.skill,{}); need=Object.entries(E.need).filter(([,v])=>v>=.5).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([k,v])=>`${Math.ceil(v)} ${matName(k)}`).join(', ')||'nothing'; }
-  const T=solveTailoring(cur().tail,(nextGate()||{skill:cur().tail+25}).skill,'net',true); surplus=Object.entries(T.bank).filter(([,v])=>v>=1).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([k,v])=>`${Math.floor(v)} ${matName(k)}`).join(', ')||'nothing yet';
+  const PT=solveTailoring(cur().tail,(nextGate()||{skill:cur().tail+25}).skill,'net',true); surplus=Object.entries(PT.bank).filter(([,v])=>v>=1).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([k,v])=>`${Math.floor(v)} ${matName(k)}`).join(', ')||'nothing yet';
   const cut=(s,n)=>s.length>n?s.slice(0,n-1)+'…':s;
   return {ENCH1:e1?e1.r.name:'Enchant Bracer - Minor Stamina',SLOT1:e1?e1.slot:9,ENCH1_CPP:e1?fmtShort(e1.x.cpp):'?',ENCH2:e2?e2.r.name:'Enchant Chest - Minor Absorption',SLOT2:e2?e2.slot:5,ENCH2_CPP:e2?fmtShort(e2.x.cpp):'?',
     FLOOR:fl?`Enchanting ${fl.skill}`:'cap',CEILINGS:cut('DE max buy @'+Math.round(ceil*100)+'% by ilvl: '+ceilings,230),NEED:cut(`To ${fl?fl.skill:'cap'}: `+need,230),SURPLUS:cut('Tailoring to next gate makes: '+surplus,230)};
@@ -609,18 +697,18 @@ function macrosText(filled){ return filled.slots.map((body,i)=>`-- LP${i+1} (${S
 // ---------- render: plan tabs ----------
 function renderPrices(){
   const t=$('priceTable'); let unpriced=0;
-  const rows=S.mats.map(m=>{ const vend=m.vendor!=null; const val=vend?fmt(m.vendor):(S.prices[m.id]?fmt(S.prices[m.id]):''); if(!vend&&!S.prices[m.id]) unpriced++;
+  const rows=T.mats.map(m=>{ const vend=m.vendor!=null; const val=vend?fmt(m.vendor):(S.prices[m.id]?fmt(S.prices[m.id]):''); if(!vend&&!S.prices[m.id]) unpriced++;
     return `<tr><td>${esc(m.name)}${m.flag?` <span class="flag" title="${esc(m.flag)}">?</span>`:''}</td><td class="muted">${vend?'vendor':(m.de?'DE mat':'AH')}</td><td>${vend?`<span class="muted num">${val}</span>`:`<input class="money ${S.prices[m.id]?'':'unpriced'}" id="p_${m.id}" data-price="${m.id}" value="${val}" placeholder="35s">`}</td></tr>`; });
-  const inter=S.tailoring.filter(r=>r.intermediate).map(r=>`<tr><td>${esc(r.name)}</td><td class="muted">AH (buy instead of craft)</td><td><input class="money" id="p_${r.id}" data-price="${r.id}" value="${S.prices[r.id]?fmt(S.prices[r.id]):''}" placeholder="optional"></td></tr>`);
-  const sell=[...S.tailoring.filter(r=>r.output.quality!=='white'||/bag|pack/i.test(r.name)),...S.enchanting.filter(r=>r.produces==='item')].map(r=>`<tr><td>${esc(r.name)}</td><td class="muted">sell price</td><td><input class="money" id="s_${r.id}" data-sell="${r.id}" value="${r.sell?fmt(r.sell):''}" placeholder="0 = not sold"></td></tr>`);
+  const inter=T.tailoring.filter(r=>r.intermediate).map(r=>`<tr><td>${esc(r.name)}</td><td class="muted">AH (buy instead of craft)</td><td><input class="money" id="p_${r.id}" data-price="${r.id}" value="${S.prices[r.id]?fmt(S.prices[r.id]):''}" placeholder="optional"></td></tr>`);
+  const sell=[...T.tailoring.filter(r=>r.output.quality!=='white'||/bag|pack/i.test(r.name)),...T.enchanting.filter(r=>r.produces==='item')].map(r=>`<tr><td>${esc(r.name)}</td><td class="muted">sell price</td><td><input class="money" id="s_${r.id}" data-sell="${r.id}" value="${r.sell?fmt(r.sell):''}" placeholder="0 = not sold"></td></tr>`);
   t.innerHTML=`<thead><tr><th>Material</th><th>Type</th><th>Price</th></tr></thead><tbody>${rows.join('')}${inter.join('')}</tbody><thead><tr><th colspan="3">Sale prices for things you make (optional)</th></tr></thead><tbody>${sell.join('')}</tbody>`;
   $('unpricedNote').textContent=(S.priceExample?'Showing example prices until a scan or a typed price replaces them. ':'')+(unpriced?`${unpriced} AH mats unpriced.`:'All mats priced.');
   t.querySelectorAll('input[data-price]').forEach(inp=>inp.addEventListener('change',e=>{ const id=e.target.dataset.price; const v=parseMoney(e.target.value); if(v>0){ S.prices[id]=v; S.priceManual[id]=Date.now(); } else { delete S.prices[id]; delete S.priceManual[id]; } S.priceExample=false; e.target.value=v?fmt(v):''; save(); renderAll(); }));
-  t.querySelectorAll('input[data-sell]').forEach(inp=>inp.addEventListener('change',e=>{ const v=parseMoney(e.target.value); const r=S.tailoring.find(x=>x.id===e.target.dataset.sell)||S.enchanting.find(x=>x.id===e.target.dataset.sell); if(r){ r.sell=v; e.target.value=v?fmt(v):''; } save(); renderAll(); }));
+  t.querySelectorAll('input[data-sell]').forEach(inp=>inp.addEventListener('change',e=>{ const v=parseMoney(e.target.value); const id=e.target.dataset.sell; if(v>0) S.sell[id]=v; else delete S.sell[id]; rebuildTables(); e.target.value=v?fmt(v):''; save(); renderAll(); }));
 }
 function renderTailoring(){
   const skill=cur().tail; $('tailSkillEcho').textContent=skill; const showAll=$('tailShowAll').checked; const mode=$('tailValueMode').value;
-  const rows=S.tailoring.filter(r=>showAll||(skill>=r.skill[0]&&skill<r.skill[3])).map(r=>{ const x=tailRow(r,skill,mode);
+  const rows=T.tailoring.filter(r=>showAll||(skill>=r.skill[0]&&skill<r.skill[3])).map(r=>{ const x=tailRow(r,skill,mode);
     return `<tr><td><span class="q-${r.output.quality}">${esc(r.name)}</span>${r.flag?` <span class="flag" title="${esc(r.flag)}">(C)</span>`:''}${r.intermediate?' <span class="muted">(intermediate)</span>':''}<br><span class="muted" style="font-size:12px">${r.inputs.map(i=>i.qty+'× '+esc(matName(i.mat))).join(', ')}</span></td>
       <td><span class="pill ${x.col}">${x.col}</span><br><span class="muted num" style="font-size:11px">${r.skill.join('/')}</span></td><td class="num">${(x.ch*100).toFixed(0)}%</td>
       <td class="num">${fmt(x.cost)}${x.unp.length?` <span class="flag" title="unpriced: ${esc(x.unp.map(matName).join(', '))}">!</span>`:''}</td><td class="num">${isFinite(x.cpp)?fmt(x.cpp):'—'}</td>
@@ -630,29 +718,29 @@ function renderTailoring(){
 }
 function renderEnchanting(){
   const skill=cur().ench; $('enchSkillEcho').textContent=skill; const showAll=$('enchShowAll').checked; const useCrafted=$('enchUseCrafted').checked; const eff=effectivePrices();
-  const rows=S.enchanting.filter(r=>showAll||(skill>=r.skill[0]&&skill<r.skill[3])).map(r=>{ const x=enchRow(r,skill,eff,useCrafted);
+  const rows=T.enchanting.filter(r=>showAll||(skill>=r.skill[0]&&skill<r.skill[3])).map(r=>{ const x=enchRow(r,skill,eff,useCrafted);
     return `<tr><td>${esc(r.name)}${r.flag?` <span class="flag" title="${esc(r.flag)}">?</span>`:''}${r.consumesRod?' <span class="muted">(one-time)</span>':''}<br><span class="muted" style="font-size:12px">${r.inputs.map(i=>i.qty+'× '+esc(matName(i.mat))).join(', ')}</span></td>
       <td><span class="pill ${x.col}">${x.col}</span><br><span class="muted num" style="font-size:11px">${r.skill.join('/')}</span></td><td class="num">${(x.ch*100).toFixed(0)}%</td>
       <td class="num">${fmt(x.cost)}${x.unp.length?` <span class="flag" title="unpriced: ${esc(x.unp.map(matName).join(', '))}">!</span>`:''}</td><td class="num">${x.credit?'<span class="pos">−'+fmt(x.credit)+'</span>':'—'}</td><td class="num">${isFinite(x.cpp)?fmt(x.cpp):'—'}</td>
       <td style="font-size:12px">${x.srcs.length?esc(x.srcs.join('; ')):'<span class="muted">AH / vendor</span>'}</td></tr>`; });
   $('enchTable').innerHTML=`<thead><tr><th>Recipe</th><th>Skill</th><th class="num">Up%</th><th class="num">Mat cost</th><th class="num">Sale credit</th><th class="num">Cost/pt</th><th>Source</th></tr></thead><tbody>${rows.join('')||'<tr><td colspan="7" class="muted">Nothing in your skill window. Tick "show all".</td></tr>'}</tbody>`;
-  const effRows=S.mats.filter(m=>m.de).map(m=>{ const e=eff[m.id]; const ah=ahPrice(m.id); const win=e&&(ah===0||e.price<ah)?'craft':'AH'; return `<tr><td>${esc(m.name)}</td><td class="num">${ah?fmt(ah):'<span class="flag">unpriced</span>'}</td><td class="num">${e?fmt(e.price):'—'}</td><td style="font-size:12px">${e?`${esc(e.via)} <span class="muted">(${fmtQty(e.qty)}/craft, ${fmt(e.cost)}/craft)</span>`:'<span class="muted">no craft feeds this</span>'}</td><td>${e?`<b class="${win==='craft'?'pos':''}">${win}</b>`:'AH'}</td></tr>`; });
+  const effRows=T.mats.filter(m=>m.de).map(m=>{ const e=eff[m.id]; const ah=ahPrice(m.id); const win=e&&(ah===0||e.price<ah)?'craft':'AH'; return `<tr><td>${esc(m.name)}</td><td class="num">${ah?fmt(ah):'<span class="flag">unpriced</span>'}</td><td class="num">${e?fmt(e.price):'—'}</td><td style="font-size:12px">${e?`${esc(e.via)} <span class="muted">(${fmtQty(e.qty)}/craft, ${fmt(e.cost)}/craft)</span>`:'<span class="muted">no craft feeds this</span>'}</td><td>${e?`<b class="${win==='craft'?'pos':''}">${win}</b>`:'AH'}</td></tr>`; });
   $('effTable').innerHTML=`<thead><tr><th>DE mat</th><th class="num">AH</th><th class="num">Via craft</th><th>Cheapest feeding craft</th><th>Cheaper</th></tr></thead><tbody>${effRows.join('')}</tbody>`;
 }
 function renderPlan(){
   const tf=+$('planTailFrom').value||cur().tail, tt=+$('planTailTo').value||tf; const ef=+$('planEnchFrom').value||cur().ench, et=+$('planEnchTo').value||ef;
   const mode=$('planTailMode').value; const deAll=$('planDisenchantAll').checked; S.ui.planTailTo=tt; S.ui.planEnchTo=et; save();
-  const T=solveTailoring(tf,tt,mode,deAll); const E=solveEnchanting(ef,et,T.bank);
+  const PT=solveTailoring(tf,tt,mode,deAll); const E=solveEnchanting(ef,et,PT.bank);
   const list=(o,fn)=>Object.entries(o).filter(([,v])=>v>0.01).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${esc(fn(k))}</td><td class="num">${fmtQty(v)}</td></tr>`).join('')||'<tr><td class="muted" colspan="2">—</td></tr>';
-  const rname=id=>{ const r=S.tailoring.find(t=>t.id===id)||S.enchanting.find(t=>t.id===id); return r?r.name:id; };
+  const rname=id=>{ const r=T.tailoring.find(t=>t.id===id)||T.enchanting.find(t=>t.id===id); return r?r.name:id; };
   const surplusVal=Object.entries(E.surplus).reduce((a,[id,q])=>a+ahPrice(id)*q,0); const needVal=Object.entries(E.need).reduce((a,[id,q])=>a+ahPrice(id)*q,0);
   $('planOut').innerHTML=`<div class="grid">
-    <div class="card"><h4>Tailoring ${tf} → ${tt}</h4><div class="kv"><span>Cash for mats</span><b>${fmt(T.cash)}</b><span>DE value banked</span><b>${fmt(T.value)}</b><span>Net</span><b class="${T.cash-T.value>0?'neg':'pos'}">${fmt(T.cash-T.value)}</b></div>${T.log.map(l=>`<p class="flag">${l}</p>`).join('')}<h3>Crafts (expected)</h3><table><tbody>${list(T.crafts,rname)}</tbody></table><h3>Raw mats consumed</h3><table><tbody>${list(T.cloth,matName)}</tbody></table></div>
+    <div class="card"><h4>Tailoring ${tf} → ${tt}</h4><div class="kv"><span>Cash for mats</span><b>${fmt(PT.cash)}</b><span>DE value banked</span><b>${fmt(PT.value)}</b><span>Net</span><b class="${PT.cash-PT.value>0?'neg':'pos'}">${fmt(PT.cash-PT.value)}</b></div>${PT.log.map(l=>`<p class="flag">${l}</p>`).join('')}<h3>Crafts (expected)</h3><table><tbody>${list(PT.crafts,rname)}</tbody></table><h3>Raw mats consumed</h3><table><tbody>${list(PT.cloth,matName)}</tbody></table></div>
     <div class="card"><h4>Enchanting ${ef} → ${et}</h4><div class="kv"><span>Cash after bank</span><b>${fmt(E.cash)}</b><span>Shopping list value</span><b>${fmt(needVal)}</b><span>Surplus to sell</span><b class="pos">${fmt(surplusVal)}</b></div>${E.log.map(l=>`<p class="flag">${l}</p>`).join('')}<h3>Recipes (expected)</h3><table><tbody>${list(E.crafts,rname)}</tbody></table><h3>Shopping list (after own crafts)</h3><table><tbody>${list(E.need,matName)}</tbody></table><h3>Surplus from crafts</h3><table><tbody>${list(E.surplus,matName)}</tbody></table></div></div>
-    <div class="card" style="margin-top:12px"><h4>Combined</h4><div class="kv"><span>Total cash out</span><b>${fmt(T.cash+E.cash)}</b><span>Surplus mats at AH</span><b class="pos">${fmt(surplusVal)}</b><span>Net engine cost</span><b class="${T.cash+E.cash-surplusVal>0?'neg':'pos'}">${fmt(T.cash+E.cash-surplusVal)}</b></div><p class="hint">Rods are excluded (one-time). Wands and oils count their sale price only if you set one on Prices. Real runs swing ±30% on skill-up luck and DE rolls.</p></div>`;
+    <div class="card" style="margin-top:12px"><h4>Combined</h4><div class="kv"><span>Total cash out</span><b>${fmt(PT.cash+E.cash)}</b><span>Surplus mats at AH</span><b class="pos">${fmt(surplusVal)}</b><span>Net engine cost</span><b class="${PT.cash+E.cash-surplusVal>0?'neg':'pos'}">${fmt(PT.cash+E.cash-surplusVal)}</b></div><p class="hint">Rods are excluded (one-time). Wands and oils count their sale price only if you set one on Prices. Real runs swing ±30% on skill-up luck and DE rolls.</p></div>`;
 }
 function renderShuffle(){
-  const lvl=+$('shLevel').value||1, slot=$('shSlot').value, q=$('shQuality').value, ceil=(+$('shCeil').value||70)/100; const de=expectedDE(lvl,slot,q); const ev=deValue(de.mats); const b=bracketFor(lvl);
+  const lvl=+$('shLevel').value||1, slot=$('shSlot').value, q=$('shQuality').value, ceil=(S.ui.ceil||70)/100; const de=expectedDE(lvl,slot,q); const ev=deValue(de.mats); const b=bracketFor(lvl);
   $('shuffleOut').innerHTML=b?`<div class="kv"><span>Item level</span><b>${b.min}–${b.max} ${slot} ${q}</b><span>Table</span><b style="font-family:var(--body)">${esc(rowText(de.row))}${de.row&&de.row.flag?` <span class="flag">${esc(de.row.flag)}</span>`:''}</b><span>Expected mats</span><b>${Object.entries(de.mats).map(([id,qq])=>fmtQty(qq)+' '+esc(matName(id))).join(', ')||'—'}</b><span>Expected value</span><b>${fmt(ev)}</b><span>Max buyout at ${Math.round(ceil*100)}%</span><b style="font-size:18px">${fmt(ev*ceil)}</b><span>Source</span><b>${srcLabel(de)}</b></div>`:'<span class="flag">No bracket covers that item level.</span>';
   const rows=deBrackets().map(br=>{ const a=expectedDE(br.min,'armor','green'),w=expectedDE(br.min,'weapon','green'),bl=expectedDE(br.min,'armor','blue'); return `<tr><td class="num">${br.min}–${br.max}</td><td style="font-size:12px">${esc(rowText(a.row))}</td><td class="num">${fmt(deValue(a.mats))}</td><td class="num">${fmt(deValue(a.mats)*ceil)}</td><td class="num">${fmt(deValue(w.mats))}</td><td class="num">${fmt(deValue(w.mats)*ceil)}</td><td class="num">${fmt(deValue(bl.mats))}</td><td>${srcLabel(a)}</td></tr>`; });
   $('bracketTable').innerHTML=`<thead><tr><th>Item lvl</th><th>Green armor table</th><th class="num">Armor EV</th><th class="num">Armor max</th><th class="num">Weapon EV</th><th class="num">Weapon max</th><th class="num">Blue EV</th><th>Src</th></tr></thead><tbody>${rows.join('')}</tbody>`;
@@ -673,45 +761,74 @@ function renderObserved(){
   $('obsSummary').innerHTML=`<thead><tr><th>Bracket</th><th>Slot</th><th>Q</th><th class="num">n</th><th>Observed</th><th>Status</th></tr></thead><tbody>${rows.join('')||'<tr><td colspan="6" class="muted">No observations yet.</td></tr>'}</tbody>`;
   $('obsRaw').innerHTML=`<thead><tr><th>#</th><th>Lvl</th><th>Slot</th><th>Q</th><th>Mat</th><th class="num">Qty</th></tr></thead><tbody>${S.observed.slice().reverse().map((o,i)=>`<tr><td class="num">${S.observed.length-i}</td><td class="num">${o.lvl}</td><td>${o.slot}</td><td>${o.quality}</td><td>${esc(matName(o.mat))}</td><td class="num">${o.qty}</td></tr>`).join('')}</tbody>`;
 }
-function renderData(){ $('jsonTail').value=JSON.stringify(S.tailoring,null,1); $('jsonEnch').value=JSON.stringify(S.enchanting,null,1); $('jsonDE').value=JSON.stringify(S.de,null,1); $('jsonMats').value=JSON.stringify(S.mats,null,1); }
-function applyData(){ try{ const t=JSON.parse($('jsonTail').value),e=JSON.parse($('jsonEnch').value),d=JSON.parse($('jsonDE').value),m=JSON.parse($('jsonMats').value); for(const r of [...t,...e]){ if(!r.id||!Array.isArray(r.skill)||r.skill.length!==4||!Array.isArray(r.inputs)) throw new Error('recipe '+(r.id||r.name)+' is malformed'); } S.tailoring=t; S.enchanting=e; S.de=d; S.mats=m; save(); renderAll(); toast('Applied.'); }catch(err){ toast('JSON error: '+err.message); } }
+// ---------- render: Now (the town stop) ----------
+// Pricing rule for everything on this tab: a number is shown only when every mat behind it has a price. Otherwise the
+// line says "prices missing" and names the mats. Nothing here is ever costed at zero.
+function unpricedIn(mats){ return Object.keys(mats).filter(id=>isUnpriced(id)); }
+function deValueOrNull(mats){ return unpricedIn(mats).length?null:deValue(mats); }
+function enchantNow(){
+  const skill=cur().ench; const eff=effectivePrices();
+  const all=T.enchanting.filter(r=>!r.consumesRod&&r.produces!=='item'&&selfSlot(r.name)&&skillChance(skill,r.skill)>0).map(r=>({r,x:enchRow(r,skill,eff,true),slot:selfSlot(r.name)}));
+  const ok=all.filter(e=>e.x.unp.length===0&&isFinite(e.x.cpp)).sort((a,b)=>a.x.cpp-b.x.cpp);
+  return {pick:ok[0]||null,runner:ok[1]||null,any:all.length>0,missing:[...new Set(all.flatMap(e=>e.x.unp))]};
+}
+function priceAge(){ const scan=S.ui.lastScan?new Date(S.ui.lastScan):null; if(!scan) return {state:S.priceExample?'example':(Object.keys(S.prices).length?'typed':'none'),hours:null}; const h=(Date.now()-scan)/36e5; return {state:h>THRESH.staleHours?'stale':'fresh',hours:h}; }
+function ageText(h){ return h==null?'':h<1?'<1h':h<48?Math.round(h)+'h':Math.round(h/24)+'d'; }
+function renderNow(){
+  const c=cur(); $('nowChar').textContent=S.activeChar; const fl=nextFloor(), g=nextGate();
+  const en=enchantNow(), cn=craftNow(); const e1=en.pick, t1=cn.pick; const ceil=(S.ui.ceil||70)/100; $('ceilEcho').textContent=Math.round(ceil*100);
+  // one sentence per profession
+  const lines=[];
+  if(e1){ const pts=fl?fl.skill-c.ench:0; const casts=fl?Math.ceil(pts/e1.x.ch):0; const need=e1.r.inputs.map(i=>`${Math.ceil(i.qty*casts)} ${matName(i.mat)}`).join(' + ');
+    if(fl&&casts<=THRESH.closePts) lines.push(['ench','good',`<b>Enchanting ${c.ench}:</b> ${casts} cast${casts===1?'':'s'} of <b>${esc(e1.r.name)}</b> (${esc(need)}) and you ding <b>${esc(fl.name)}</b>.`]);
+    else if(fl) lines.push(['ench','',`<b>Enchanting ${c.ench}:</b> <b>${esc(e1.r.name)}</b> at ${fmt(e1.x.cpp)}/pt. ${casts} casts to ${fl.skill}; cast once per ${e1.r.inputs.map(i=>i.qty+' '+matName(i.mat)).join(' + ')} in the bag, then stop.`]);
+    else lines.push(['ench','',`<b>Enchanting ${c.ench}:</b> all wand floors reached; <b>${esc(e1.r.name)}</b> is the cheapest point at ${fmt(e1.x.cpp)}/pt.`]); }
+  else if(en.any) lines.push(['ench','bad',`<b>Enchanting ${c.ench}:</b> prices missing for ${esc(en.missing.map(matName).join(', '))} — nothing can be costed. Fill Prices or load a scan.`]);
+  else lines.push(['ench','',`<b>Enchanting ${c.ench}:</b> nothing self-castable at this skill; walk past the trainer.`]);
+  if(t1) lines.push(['tail',t1.x.net>=0?'good':'',`<b>Tailoring ${c.tail}:</b> craft <b>${esc(t1.r.name)}</b>${t1.r.flag?' <span class="flag">(C)</span>':''}, ${(t1.x.ch*100).toFixed(0)}% skill-up, net ${t1.x.net>=0?'+':''}${fmt(t1.x.net)} per craft${t1.r.output.quality==='white'?'':' after disenchant'}.`]);
+  else if(cn.any){ const u=[...new Set(cn.skipped.flatMap(x=>x.x.unp))].map(matName); lines.push(['tail','bad',`<b>Tailoring ${c.tail}:</b> ${u.length?'prices missing for '+esc(u.slice(0,4).join(', '))+(u.length>4?'…':''):'every craft in range is bind-on-pickup'} — nothing can be costed.`]); }
+  else lines.push(['tail','',`<b>Tailoring ${c.tail}:</b> nothing in your skill window; walk past.`]);
+  $('doNow').innerHTML=lines.map(([k,cls,html])=>`<div class="line ${cls}">${html}</div>`).join('');
+  const pa=priceAge(); $('doNowNote').textContent=pa.state==='example'?'Example prices: real numbers arrive with the first Auctionator scan.':pa.state==='stale'?`Prices are ${ageText(pa.hours)} old; the next pull refreshes them.`:pa.state==='none'?'No prices at all yet.':'';
+  // tiles, coloured by state
+  const greens=S.ui.bagGreens!=null?S.ui.bagGreens:null; const ePts=fl?fl.skill-c.ench:null, tPts=g?g.skill-c.tail:null;
+  $('nowTiles').innerHTML=[
+    {l:'Enchanting',v:c.ench,d:fl?`${ePts} to ${fl.name} (lvl ${fl.lvl})`:'all wand floors reached',cls:fl&&ePts<=THRESH.closePts?'good':''},
+    {l:'Tailoring',v:c.tail,d:g?`${tPts} to ${g.name} (lvl ${g.lvl})`:'Artisan reached',cls:g&&tPts<=THRESH.closePts?'good':''},
+    {l:'Prices',v:pa.state==='fresh'||pa.state==='stale'?ageText(pa.hours):pa.state,d:pa.state==='fresh'?'since last scan':pa.state==='stale'?'stale: pull a new scan':pa.state==='example'?'no scan loaded yet':pa.state==='typed'?'hand-entered':'none loaded',cls:pa.state==='fresh'?'good':pa.state==='stale'||pa.state==='example'?'warn':'bad'},
+    {l:'DE bag',v:greens==null?'—':greens,d:greens==null?'companion addon not loaded':greens>0?'greens waiting in bag 4':'bag 4 empty',cls:greens>0?'lit':''},
+  ].map(t=>`<div class="tile ${t.cls}"><div class="l">${t.l}</div><div class="v num">${t.v}</div><div class="d">${t.d}</div></div>`).join('');
+  // This Stop: one action per profession, math behind a tap
+  const stop=[];
+  if(e1){ const pts=fl?fl.skill-c.ench:0; const casts=fl?Math.ceil(pts/e1.x.ch):0; const need=e1.r.inputs.map(i=>`${Math.ceil(i.qty*casts)} ${matName(i.mat)}`).join(' + ');
+    stop.push({k:'Enchant',head:`<b>${esc(e1.r.name)}</b> on slot ${e1.slot} · ${fmt(e1.x.cpp)}/pt`,why:`${fl?`~${casts} casts to ${fl.skill} = ${esc(need)} (${fmt(e1.x.cpp*pts)}). `:''}${e1.x.srcs.length?'Mats via '+esc(e1.x.srcs.join('; '))+'. ':''}${en.runner?`Runner-up: ${esc(en.runner.r.name)} at ${fmt(en.runner.x.cpp)}/pt.`:''}`}); }
+  else if(en.any) stop.push({k:'Enchant',head:`<span class="flag">prices missing:</span> ${esc(en.missing.map(matName).join(', '))}`,why:'Every self-castable recipe in range needs one of these. Type a price on Plan → Prices, or load a scan.'});
+  else stop.push({k:'Enchant',head:'nothing castable on your own gear at this skill',why:''});
+  if(t1){ const why=cn.skipped.filter(x=>x.x.netcpp<t1.x.netcpp).slice(0,3).map(x=>`${esc(x.r.name)} (${x.r.output.bop?'bind-on-pickup':'unpriced: '+esc(x.x.unp.map(matName).join(', '))})`).join(', ');
+    stop.push({k:'Craft',head:`<b>${esc(t1.r.name)}</b>${t1.r.flag?' <span class="flag" title="'+esc(t1.r.flag)+'">(C)</span>':''} · ${(t1.x.ch*100).toFixed(0)}% skill-up · net ${t1.x.net>=0?'<span class="pos">+'+fmt(t1.x.net)+'</span>':'<span class="neg">'+fmt(t1.x.net)+'</span>'}`,why:`Mats ${fmt(t1.x.cost)}${t1.r.output.quality!=='white'?`, disenchant value ${fmt(t1.x.value)} (feeds ${t1.x.feeds})`:''}; ${fmt(t1.x.netcpp)} per point net.${why?' Skipped: '+why+'.':''}`}); }
+  else if(cn.any){ const u=[...new Set(cn.skipped.flatMap(x=>x.x.unp))].map(matName); stop.push({k:'Craft',head:`<span class="flag">${u.length?'prices missing:':'all bind-on-pickup'}</span> ${esc(u.slice(0,4).join(', '))}`,why:`${cn.skipped.length} craft${cn.skipped.length>1?'s':''} in range, none fully priced.`}); }
+  else stop.push({k:'Craft',head:'nothing in your skill window',why:''});
+  $('stopOut').innerHTML=stop.map((s,i)=>`<details class="act"><summary><span class="k">${s.k}</span><span class="h">${s.head}</span></summary><div class="why">${s.why||'<span class="muted">—</span>'}</div></details>`).join('');
+  // ceilings strip: a bracket with any unpriced mat shows a dash, never 0s
+  // highlight the bracket your own crafts feed right now (the Craft-now recipe's output item level), if any
+  const myIl=t1&&t1.r.output.quality!=='white'?outLevel(t1.r.output):null; const brs=deBrackets().filter(b=>b.min<=35);
+  $('ceilStrip').innerHTML=brs.map(b=>{ const a=deValueOrNull(expectedDE(b.min,'armor','green').mats), w=deValueOrNull(expectedDE(b.min,'weapon','green').mats); const hot=myIl!=null&&myIl>=b.min&&myIl<=b.max; return `<span class="cell ${hot?'hot':''}" title="item level ${b.min}–${b.max}${hot?' — your current crafts disenchant into this bracket':''}"><span class="num">${b.min}–${b.max}</span>&ensp;A ${a==null?'—':fmtShort(a*ceil)} · W ${w==null?'—':fmtShort(w*ceil)}</span>`; }).join('');
+}
 
-// ---------- render: session ----------
+// ---------- render: Session (the couch) ----------
 let sessionSel={slot:'armor',quality:'green',mat:null};
 function renderSession(){
-  const c=cur(); $('nowChar').textContent=S.activeChar;
-  const fl=nextFloor(), g=nextGate(); const scan=S.ui.lastScan?new Date(S.ui.lastScan):null; const age=scan?Math.round((Date.now()-scan)/36e5):null;
-  const greens=S.ui.bagGreens!=null?S.ui.bagGreens:null;
-  $('nowTiles').innerHTML=[
-    {l:'Enchanting',v:c.ench,d:fl?`${fl.skill-c.ench} to ${fl.name} (lvl ${fl.lvl})`:'all wand floors reached'},
-    {l:'Tailoring',v:c.tail,d:g?`${g.skill-c.tail} to ${g.name} (lvl ${g.lvl})`:'Artisan reached'},
-    {l:'Prices',v:scan?(age<1?'<1h':age<48?age+'h':Math.round(age/24)+'d'):(S.priceExample?'example':'typed'),d:scan?'since last scan':(S.priceExample?'no scan loaded yet':'hand-entered')},
-    {l:'DE bag',v:greens==null?'—':greens,d:greens==null?'companion addon not loaded':'greens waiting in bag 4'},
-  ].map(t=>`<div class="tile"><div class="l">${t.l}</div><div class="v num">${t.v}</div><div class="d">${t.d}</div></div>`).join('');
-  // this stop
-  const be=bestEnchants(); const cn=craftNow(); const e1=be[0]; const t1=cn.pick;
-  let stop=[];
-  if(e1){ const pts=fl?fl.skill-c.ench:0; const crafts=pts/e1.x.ch; const mats=e1.r.inputs.map(i=>`${Math.ceil(i.qty*crafts)} ${matName(i.mat)}`).join(' + ');
-    stop.push(['Enchant now',`<b>${esc(e1.r.name)}</b> on slot ${e1.slot} · ${fmt(e1.x.cpp)}/pt${fl?` · ~${Math.ceil(crafts)} casts to ${fl.skill} = ${esc(mats)} (${fmt(e1.x.cpp*pts)})`:''}`]); }
-  else stop.push(['Enchant now','nothing castable on your own gear at this skill']);
-  if(t1){ const why=cn.skipped.filter(x=>x.x.netcpp<t1.x.netcpp).slice(0,2).map(x=>`${esc(x.r.name)} (${x.r.output.bop?'BoP':'unpriced: '+esc(x.x.unp.map(matName).join(', '))})`).join(', ');
-    stop.push(['Craft now',`<b>${esc(t1.r.name)}</b>${t1.r.flag?' <span class="flag" title="'+esc(t1.r.flag)+'">(C)</span>':''} · ${(t1.x.ch*100).toFixed(0)}% skill-up · net ${t1.x.net>=0?'<span class="pos">+'+fmt(t1.x.net)+'</span>':'<span class="neg">'+fmt(t1.x.net)+'</span>'} per craft${t1.r.output.quality==='white'?'':' after disenchant'}${t1.x.feeds&&t1.r.output.quality!=='white'?' · feeds '+t1.x.feeds:''}${why?`<br><span class="dim">skipped: ${why}</span>`:''}`]); }
-  else if(cn.any){ const u=[...new Set(cn.skipped.flatMap(x=>x.x.unp))].map(matName).slice(0,4).join(', '); stop.push(['Craft now',`nothing fully priced: ${cn.skipped.length} craft${cn.skipped.length>1?'s':''} in range but ${u?'unpriced '+esc(u):'all bind-on-pickup'} — fill Prices first`]); }
-  else stop.push(['Craft now','nothing in your skill window']);
-  const ceil=(+$('shCeil').value||70)/100; const brs=deBrackets().filter(b=>b.min<=30);
-  stop.push(['Buy greens under',brs.map(b=>`<span class="num">ilvl ${b.min}–${b.max}</span> armor ${fmtShort(deValue(expectedDE(b.min,'armor','green').mats)*ceil)} · weapon ${fmtShort(deValue(expectedDE(b.min,'weapon','green').mats)*ceil)}`).join('<br>')]);
-  if(fl&&e1){ const casts=Math.ceil((fl.skill-c.ench)/e1.x.ch); const per=e1.r.inputs.reduce((a,i)=>a+i.qty,0); stop.push(['Rule',casts<=15?`Floor is close: press A ${casts} times this stop and ding ${fl.name}.`:`Press A once per ${per} ${e1.r.inputs.map(i=>matName(i.mat)).join('/')} in the bag, then stop. ${casts} casts to the floor is a few stops, not one.`]); }
-  else stop.push(['Rule','Walk past the trainer.']);
-  $('stopOut').innerHTML=stop.map(([k,v])=>`<span>${k}</span><b style="font-family:var(--body)">${v}</b>`).join('');
-  // packs
   $('packBtns').innerHTML=Object.entries(S.packs).map(([k,p])=>`<button data-pack="${k}" aria-pressed="${S.ui.pack===k}">${esc(p.name)}<small>${esc(p.check[0])}</small></button>`).join('');
-  $('packBtns').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ S.ui.pack=b.dataset.pack; save(); renderSession(); $('mPack').value=S.ui.pack; renderMacros(); }));
-  const id=S.ui.pack; if(!S.packs[id]){ $('packOut').hidden=true; return; }
-  const f=fillMacros(id); $('packOut').hidden=false; $('packTitle').textContent=f.pack.name; $('packNote').textContent=f.pack.note;
-  $('padOut').innerHTML=f.slots.map((body,i)=>`<div class="btn"><span class="cap">${SLOT_KEYS[i]}</span><span class="lab">${esc(f.labels[i])}</span><span class="body">${esc(body)}</span></div>`).join('');
-  const ck=S.checks[id]||{};
-  $('checkOut').innerHTML=f.pack.check.map((t,i)=>`<label><input type="checkbox" id="ck_${id}_${i}" data-i="${i}" ${ck[i]?'checked':''}> <span>${esc(t.replace(/\{(\w+)\}/g,(m,k)=>f.ph[k]!==undefined?f.ph[k]:m))}</span></label>`).join('');
-  $('checkOut').querySelectorAll('input').forEach(c=>c.addEventListener('change',e=>{ S.checks[id]=S.checks[id]||{}; S.checks[id][e.target.dataset.i]=e.target.checked; save(); }));
+  $('packBtns').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ S.ui.pack=b.dataset.pack; save(); renderSession(); if($('mPack').options.length) $('mPack').value=S.ui.pack; renderMacros(); }));
+  const id=S.ui.pack; if(!S.packs[id]){ $('packOut').hidden=true; } else {
+    const f=fillMacros(id); $('packOut').hidden=false; $('packNote').textContent=f.pack.note;
+    $('toggleBodies').setAttribute('aria-pressed',!!prefs.showBodies); $('toggleBodies').textContent=prefs.showBodies?'Hide macro bodies':'Show macro bodies';
+    $('padOut').className='pad'+(prefs.showBodies?' bodies':'');
+    $('padOut').innerHTML=f.slots.map((body,i)=>`<div class="btn"><span class="cap">${SLOT_KEYS[i]}</span><span class="lab">${esc(f.labels[i])}</span><span class="body">${esc(body)}</span></div>`).join('');
+    const ck=S.checks[id]||{};
+    $('checkOut').innerHTML=f.pack.check.map((t,i)=>`<label><input type="checkbox" id="ck_${id}_${i}" data-i="${i}" ${ck[i]?'checked':''}> <span>${esc(t.replace(/\{(\w+)\}/g,(m,k)=>f.ph[k]!==undefined?f.ph[k]:m))}</span></label>`).join('');
+    $('checkOut').querySelectorAll('input').forEach(c=>c.addEventListener('change',e=>{ S.checks[id]=S.checks[id]||{}; S.checks[id][e.target.dataset.i]=e.target.checked; save(); }));
+  }
   // DE logger
   const lvl=+$('sLvl').value||1; const b=bracketFor(lvl); const row=deRow(lvl,sessionSel.slot,sessionSel.quality)||deRow(lvl,'armor',sessionSel.quality);
   $('sBracket').textContent=b?`ilvl ${b.min}–${b.max} ${sessionSel.slot} ${sessionSel.quality}: ${rowText(row)}${row&&row.source==='classic'?' · Classic (C)':row&&row.source==='forever'?' · Forever':''}`:'No bracket covers that item level';
@@ -720,7 +837,32 @@ function renderSession(){
   $('sMats').querySelectorAll('button').forEach(x=>x.addEventListener('click',()=>{ sessionSel.mat=x.dataset.mat; renderSession(); }));
   $('sQty').innerHTML=[1,2,3,4,5,6].map(q=>`<button data-q="${q}">+${q}</button>`).join('');
   $('sQty').querySelectorAll('button').forEach(x=>x.addEventListener('click',()=>{ if(!sessionSel.mat) return; const o={lvl,slot:sessionSel.slot,quality:sessionSel.quality,mat:sessionSel.mat,qty:+x.dataset.q,ts:Date.now()}; S.observed.push(o); postObserved(o); saveLocal(); renderAll(); toast(`Logged ${x.dataset.q} ${matName(sessionSel.mat)}`); }));
-  const last=S.observed[S.observed.length-1]; $('sLast').textContent=last?`Last: lvl ${last.lvl} ${last.slot} → ${last.qty} ${matName(last.mat)} · ${S.observed.length} logged`:'Nothing logged yet';
+  const last=S.observed[S.observed.length-1]; $('sLast').textContent=last?`Last: ilvl ${last.lvl} ${last.slot} → ${last.qty} ${matName(last.mat)} · ${S.observed.length} logged`:'Nothing logged yet';
+}
+
+// ---------- render: Data ----------
+function renderData(){
+  $('jsonTail').value=JSON.stringify(T.tailoring,null,1); $('jsonEnch').value=JSON.stringify(T.enchanting,null,1); $('jsonDE').value=JSON.stringify(T.de,null,1); $('jsonMats').value=JSON.stringify(T.mats,null,1);
+  const n=S.custom.tailoring.length+S.custom.enchanting.length+Object.keys(S.matOverrides).length+Object.keys(S.deOverrides).length+Object.keys(S.sell).length;
+  $('overrideNote').textContent=n?`${S.custom.tailoring.length+S.custom.enchanting.length} custom recipes, ${Object.keys(S.sell).length} sale prices, ${Object.keys(S.matOverrides).length} mat overrides, ${Object.keys(S.deOverrides).length} yield rows`:'no overrides';
+  $('srcNote').textContent=SRC.build?`source: ForeverDB build ${SRC.build}${SRC.client?' · client '+SRC.client:''} · ${SRC.tailoring.length}/${SRC.enchanting.length} recipes, ${SRC.de.length} yield rows`:'source: built-in Classic seed (C)';
+  $('thClose').textContent=THRESH.closePts; $('thStale').textContent=THRESH.staleHours;
+  $('dChar').innerHTML=Object.keys(S.chars).map(n=>`<option ${n===S.activeChar?'selected':''}>${esc(n)}</option>`).join('');
+  $('dCharNote').textContent=Object.keys(S.chars).length>1?'':'the last character cannot be deleted';
+}
+const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+function applyData(){
+  try{
+    const t=JSON.parse($('jsonTail').value),e=JSON.parse($('jsonEnch').value),d=JSON.parse($('jsonDE').value),m=JSON.parse($('jsonMats').value);
+    for(const r of [...t,...e]){ if(!r.id||!Array.isArray(r.skill)||r.skill.length!==4||!Array.isArray(r.inputs)) throw new Error('recipe '+(r.id||r.name)+' is malformed'); }
+    for(const row of d){ if(!row.id||!Array.isArray(row.results)) throw new Error('yield row '+(row.id||'?')+' is malformed'); }
+    // diff against the source: anything different or new becomes an override; sell prices go to S.sell
+    const strip=r=>{ const c=clone(r); delete c.custom; delete c.sell; return c; };
+    for(const [prof,list] of [['tailoring',t],['enchanting',e]]){ const src=new Map(SRC[prof].map(r=>[r.id,r])); const custom=[]; for(const r of list){ if(r.sell>0) S.sell[r.id]=r.sell; else delete S.sell[r.id]; const s=src.get(r.id); if(!s||!same(strip(r),strip(Object.assign({},s,{sell:0})))) custom.push(strip(r)); } S.custom[prof]=custom; }
+    const srcM=new Map(SRC.mats.map(x=>[x.id,x])); S.matOverrides={}; for(const x of m){ const s=srcM.get(x.id); if(!s){ S.matOverrides[x.id]=clone(x); continue; } const o={}; for(const k of ['vendor','name','de']) if(!same(x[k],s[k])) o[k]=x[k]; if(Object.keys(o).length) S.matOverrides[x.id]=o; }
+    const srcD=new Map(SRC.de.map(x=>[x.id,x])); S.deOverrides={}; for(const row of d){ const s=srcD.get(row.id); const c=clone(row); delete c.source; if(!s||!same(c,Object.assign(clone(s),{source:undefined})&&(()=>{const z=clone(s); delete z.source; return z;})())) S.deOverrides[row.id]=c; }
+    rebuildTables(); save(); renderAll(); toast('Applied.');
+  }catch(err){ toast('JSON error: '+err.message); }
 }
 
 // ---------- data files (same-origin, optional) ----------
@@ -728,39 +870,44 @@ async function loadDataFiles(){
   if(!/^https?:/.test(location.protocol)) return;
   const status=[]; let changed=false; const fetchJson=async p=>{ try{ const r=await fetch(p,{cache:'no-store'}); if(!r.ok||r.status===204) return null; return await r.json(); }catch(e){ return null; } };
   const rec=await fetchJson('data/recipes.json');
-  if(rec&&Array.isArray(rec.tailoring)&&rec.build){ if(S.ui.loadedBuild!==rec.build){ const keepSell=list=>{ for(const r of list){ const old=[...S.tailoring,...S.enchanting].find(x=>x.id===r.id); if(old&&old.sell) r.sell=old.sell; } return list; }; const custom=[...S.tailoring,...S.enchanting].filter(r=>r.custom); S.tailoring=keepSell(rec.tailoring).concat(custom.filter(r=>r.output)); S.enchanting=keepSell(rec.enchanting).concat(custom.filter(r=>!r.output)); for(const m of rec.mats||[]){ const old=matById(m.id); if(old){ if(m.itemId) old.itemId=m.itemId; if(old.vendor==null&&m.vendor!=null) old.vendor=m.vendor; } else S.mats.push({id:m.id,name:m.name,vendor:m.vendor??null,de:!!m.de,itemId:m.itemId}); } S.ui.loadedBuild=rec.build; changed=true; }
-    if(Array.isArray(rec.de)&&rec.de.length&&S.ui.loadedDeBuild!==rec.build){ S.de=rec.de; S.ui.loadedDeBuild=rec.build; changed=true; }
-    if(rec.client) S.ui.fdbClient=rec.client;
+  if(rec&&Array.isArray(rec.tailoring)&&rec.build){
+    const next={source:'foreverdb',build:rec.build,client:rec.client||null,tailoring:rec.tailoring,enchanting:rec.enchanting||[],mats:(rec.mats||[]).map(m=>({id:m.id,name:m.name,vendor:m.vendor??null,de:!!m.de,itemId:m.itemId||null})),de:Array.isArray(rec.de)&&rec.de.length?rec.de:SRC.de,stats:rec.stats||null};
+    // seed vendor prices survive where ForeverDB has none (B6): the mat exists in both, the source says null
+    for(const m of next.mats){ if(m.vendor==null){ const s=SEED.mats.find(x=>x.id===m.id||normName(x.name)===normName(m.name)); if(s&&s.vendor!=null){ m.vendor=s.vendor; m.flag=s.flag||'(C) vendor price from Classic seed'; } } }
+    if(!same(next,SRC)){ SRC=next; try{ localStorage.setItem(SRC_KEY,JSON.stringify(SRC)); }catch(e){} const al=computeAliases(SRC); Object.assign(S.matAliases,al); if(applyAliases(S,S.matAliases)) changed=true; rebuildTables(); changed=true; }
     const st=rec.stats||{}; status.push(`recipes: ForeverDB build ${rec.build} (${st.tailoring||rec.tailoring.length} tailoring, ${st.enchanting||(rec.enchanting||[]).length} enchanting${st.deRows?`, ${st.deRows} DE rows, ${st.deForeverRows||0} Forever-observed`:''})`); }
   const pr=await fetchJson('data/prices.json');
-  if(pr&&pr.prices){ const scanTs=Date.parse(pr.fileModified||pr.generatedAt||0)||0; let n=0; if(S.priceExample){ S.prices={}; S.priceExample=false; changed=true; } for(const [id,v] of Object.entries(pr.prices)){ if(!(v>0)) continue; if((S.priceManual[id]||0)>scanTs) continue; if(S.prices[id]!==v){ S.prices[id]=v; changed=true; } n++; } S.ui.lastScan=scanTs||Date.now(); status.push(`prices: ${n} mats from ${pr.source||'file'} ${pr.realm||''}`); }
+  if(pr&&pr.prices){ const scanTs=Date.parse(pr.fileModified||pr.generatedAt||0)||0; let n=0; if(S.priceExample){ S.prices={}; S.priceExample=false; changed=true; } for(const [id0,v] of Object.entries(pr.prices)){ const id=S.matAliases[id0]||id0; if(!(v>0)) continue; if((S.priceManual[id]||0)>scanTs) continue; if(S.prices[id]!==v){ S.prices[id]=v; changed=true; } n++; } if(S.ui.lastScan!==(scanTs||Date.now())){ S.ui.lastScan=scanTs||Date.now(); changed=true; } status.push(`prices: ${n} mats from ${pr.source||'file'} ${pr.realm||''}`); }
   const ob=await fetchJson('data/observed.json');
-  if(ob&&Array.isArray(ob.observed)){ const have=new Set(S.observed.map(o=>[o.lvl,o.slot,o.quality,o.mat,o.qty,o.ts].join('|'))); let n=0; for(const o of ob.observed){ const k=[o.lvl,o.slot,o.quality,o.mat,o.qty,o.ts].join('|'); if(!have.has(k)){ S.observed.push(o); have.add(k); n++; } } if(n) changed=true; status.push(`observed: ${ob.observed.length} on file, ${n} new`); }
+  if(ob&&Array.isArray(ob.observed)){ const have=new Set(S.observed.map(obsKey)); let n=0; for(const o of ob.observed){ o.mat=S.matAliases[o.mat]||o.mat; const k=obsKey(o); if(!have.has(k)){ S.observed.push(o); have.add(k); n++; } } if(n) changed=true; status.push(`observed: ${ob.observed.length} on file, ${n} new`); }
   const ch=await fetchJson('data/character.json');
   if(ch&&ch.chars){ for(const [name,v] of Object.entries(ch.chars)){ S.chars[name]=Object.assign(S.chars[name]||{},{tail:v.tail,ench:v.ench}); if(v.bagGreens!=null&&name===S.activeChar) S.ui.bagGreens=v.bagGreens; } changed=true; status.push('character: addon snapshot'); }
   if(!rec&&!pr&&!ob&&!ch){ $('dataStatus').textContent='No data files beside the page yet; running on seed and example prices.'; return; }
   $('dataStatus').textContent=status.join(' · '); if(changed){ save(); syncHeader(); renderAll(); }
 }
-function renderFooter(){ $('footer').innerHTML=(S.ui.loadedBuild?`Recipe, item and disenchant data: <a href="https://foreverdb.net" target="_blank" rel="noopener">Data from ForeverDB.net</a> (build ${esc(S.ui.loadedBuild)}${S.ui.fdbClient?`, client ${esc(S.ui.fdbClient)}`:''}). `:'Seed recipe data; disenchant table is Classic (C) until a ForeverDB seed lands. ')+'Prices and disenchant observations are your own. One cast per keypress is a WoW rule; nothing here automates a cast.'; }
+function renderFooter(){ $('footer').innerHTML=(SRC.build?`Recipe, item and disenchant data: <a href="https://foreverdb.net" target="_blank" rel="noopener">Data from ForeverDB.net</a> (build ${esc(SRC.build)}${SRC.client?`, client ${esc(SRC.client)}`:''}). `:'Seed recipe data; disenchant table is Classic (C) until a ForeverDB seed lands. ')+'Prices and disenchant observations are your own. One cast per keypress is a WoW rule; nothing here automates a cast.'; }
 
-// ---------- modes, header, wiring ----------
-function renderAll(){ renderPrices(); renderTailoring(); renderEnchanting(); renderShuffle(); renderMacros(); renderObserved(); renderData(); renderSession(); renderFooter(); }
-function applyTheme(){ const t=S.ui.theme||'auto'; if(t==='auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme',t); }
-function setMode(m,noSave){ S.ui.mode=m; if(!noSave) save(); $('session').hidden=m!=='session'; $('planTabs').hidden=m!=='plan'; $('plan').hidden=m!=='plan'; $('modeSession').setAttribute('aria-pressed',m==='session'); $('modePlan').setAttribute('aria-pressed',m==='plan'); }
+// ---------- tabs, header, wiring ----------
+function renderAll(){ renderPrices(); renderTailoring(); renderEnchanting(); renderShuffle(); renderMacros(); renderObserved(); renderData(); renderSession(); renderNow(); renderFooter(); }
+function applyTheme(){ const t=prefs.theme||'auto'; if(t==='auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme',t); $('theme').value=t; }
+function setView(v){ if(!$('view-'+v)) v='now'; prefs.tab=v; savePrefs(); document.querySelectorAll('main.view').forEach(m=>m.hidden=m.id!=='view-'+v); document.querySelectorAll('#topTabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.view===v)); }
+function setPlanTab(t){ if(!$('tab-'+t)) t='prices'; prefs.planTab=t; savePrefs(); document.querySelectorAll('#planTabs button').forEach(x=>x.setAttribute('aria-selected',x.dataset.tab===t)); document.querySelectorAll('#view-plan section.tab').forEach(s=>s.classList.toggle('active',s.id==='tab-'+t)); }
 function syncHeader(){ const sel=$('charSel'); sel.innerHTML=Object.keys(S.chars).map(n=>`<option ${n===S.activeChar?'selected':''}>${esc(n)}</option>`).join(''); $('skTail').value=cur().tail; $('skEnch').value=cur().ench; $('planTailFrom').value=cur().tail; $('planEnchFrom').value=cur().ench;
-  $('theme').value=S.ui.theme||'auto'; $('tailValueMode').value=S.ui.tailValueMode||'de'; $('planTailTo').value=S.ui.planTailTo||150; $('planEnchTo').value=S.ui.planEnchTo||150; $('obsMin').value=S.ui.obsMin||20; if($('mPack').options.length) $('mPack').value=S.ui.pack||'de'; }
-document.querySelectorAll('nav.tabs button').forEach(b=>b.addEventListener('click',()=>{ document.querySelectorAll('nav.tabs button').forEach(x=>x.setAttribute('aria-selected','false')); b.setAttribute('aria-selected','true'); document.querySelectorAll('section.tab').forEach(s=>s.classList.remove('active')); $('tab-'+b.dataset.tab).classList.add('active'); }));
+  $('tailValueMode').value=S.ui.tailValueMode||'de'; $('planTailTo').value=S.ui.planTailTo||150; $('planEnchTo').value=S.ui.planEnchTo||150; $('obsMin').value=S.ui.obsMin||20; $('shCeil').value=S.ui.ceil||70; if($('mPack').options.length) $('mPack').value=S.ui.pack||'de'; }
+document.querySelectorAll('#topTabs button').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
+document.querySelectorAll('#planTabs button').forEach(b=>b.addEventListener('click',()=>setPlanTab(b.dataset.tab)));
 $('charSel').addEventListener('change',e=>{ S.activeChar=e.target.value; S.ui.bagGreens=null; save(); syncHeader(); renderAll(); });
 $('charAdd').addEventListener('click',()=>{ const inp=$('charNew'); if(inp.hidden){ inp.hidden=false; inp.focus(); return; } const n=inp.value.trim(); if(n&&!S.chars[n]){ S.chars[n]={tail:1,ench:1}; S.activeChar=n; save(); } inp.value=''; inp.hidden=true; syncHeader(); renderAll(); });
 $('charNew').addEventListener('keydown',e=>{ if(e.key==='Enter') $('charAdd').click(); });
-$('skTail').addEventListener('input',e=>{ cur().tail=Math.max(1,Math.min(300,+e.target.value||1)); $('planTailFrom').value=cur().tail; save(); renderTailoring(); renderEnchanting(); renderMacros(); renderSession(); });
-$('skEnch').addEventListener('input',e=>{ cur().ench=Math.max(1,Math.min(300,+e.target.value||1)); $('planEnchFrom').value=cur().ench; save(); renderEnchanting(); renderMacros(); renderSession(); });
-$('modeSession').addEventListener('click',()=>setMode('session')); $('modePlan').addEventListener('click',()=>setMode('plan'));
-$('theme').value=S.ui.theme||'auto'; $('theme').addEventListener('change',e=>{ S.ui.theme=e.target.value; save(); applyTheme(); });
-$('tailShowAll').addEventListener('change',renderTailoring); $('tailValueMode').value=S.ui.tailValueMode||'de'; $('tailValueMode').addEventListener('change',e=>{ S.ui.tailValueMode=e.target.value; save(); renderTailoring(); });
+$('skTail').addEventListener('input',e=>{ cur().tail=Math.max(1,Math.min(300,+e.target.value||1)); $('planTailFrom').value=cur().tail; save(); renderTailoring(); renderEnchanting(); renderMacros(); renderSession(); renderNow(); });
+$('skEnch').addEventListener('input',e=>{ cur().ench=Math.max(1,Math.min(300,+e.target.value||1)); $('planEnchFrom').value=cur().ench; save(); renderEnchanting(); renderMacros(); renderSession(); renderNow(); });
+$('theme').addEventListener('change',e=>{ prefs.theme=e.target.value; savePrefs(); applyTheme(); });
+$('toggleBodies').addEventListener('click',()=>{ prefs.showBodies=!prefs.showBodies; savePrefs(); renderSession(); });
+$('tailShowAll').addEventListener('change',renderTailoring); $('tailValueMode').addEventListener('change',e=>{ S.ui.tailValueMode=e.target.value; save(); renderTailoring(); });
 $('enchShowAll').addEventListener('change',renderEnchanting); $('enchUseCrafted').addEventListener('change',renderEnchanting);
-$('planTailTo').value=S.ui.planTailTo||150; $('planEnchTo').value=S.ui.planEnchTo||150; $('runPlan').addEventListener('click',renderPlan);
-['shLevel','shSlot','shQuality','shCeil'].forEach(id=>$(id).addEventListener('input',()=>{ renderShuffle(); renderSession(); renderMacros(); }));
+$('runPlan').addEventListener('click',renderPlan);
+['shLevel','shSlot','shQuality'].forEach(id=>$(id).addEventListener('input',()=>{ renderShuffle(); }));
+$('shCeil').addEventListener('input',e=>{ S.ui.ceil=Math.max(10,Math.min(100,+e.target.value||70)); save(); renderShuffle(); renderNow(); renderMacros(); });
 $('mPack').addEventListener('change',e=>{ S.ui.pack=e.target.value; save(); renderMacros(); renderSession(); });
 $('mReset').addEventListener('click',()=>{ const id=$('mPack').value; S.packs[id]=clone(PACKS_DEFAULT[id]); save(); renderMacros(); renderSession(); toast('Pack reset.'); });
 $('mCopy').addEventListener('click',()=>copyText(macrosText(fillMacros($('mPack').value)),'8 macros copied'));
@@ -771,17 +918,18 @@ $('checkReset').addEventListener('click',()=>{ delete S.checks[S.ui.pack]; save(
 $('lvlDown').addEventListener('click',()=>{ $('sLvl').value=Math.max(1,+$('sLvl').value-1); renderSession(); }); $('lvlUp').addEventListener('click',()=>{ $('sLvl').value=Math.min(60,+$('sLvl').value+1); renderSession(); }); $('sLvl').addEventListener('input',renderSession);
 for(const [gid,key] of [['sSlot','slot'],['sQual','quality']]) $(gid).querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{ sessionSel[key]=b.dataset.v; $(gid).querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); renderSession(); }));
 $('sUndo').addEventListener('click',()=>{ const o=S.observed.pop(); if(!o) return; deleteObserved(o); saveLocal(); renderAll(); });
-$('obsMin').value=S.ui.obsMin||20; $('obsMin').addEventListener('change',e=>{ S.ui.obsMin=+e.target.value||20; save(); renderAll(); });
+$('obsMin').addEventListener('change',e=>{ S.ui.obsMin=+e.target.value||20; save(); renderAll(); });
 $('dataApply').addEventListener('click',applyData);
-$('dataExport').addEventListener('click',()=>copyText(JSON.stringify(S,null,1),'Export copied'));
-$('dataImportBtn').addEventListener('click',()=>{ try{ const s=normalize(JSON.parse($('jsonImport').value)); s.rev=S.rev; S=s; save(); syncHeader(); applyTheme(); renderAll(); $('jsonImport').value=''; toast('Imported.'); }catch(err){ toast('Import failed: '+err.message); } });
+$('overrideClear').addEventListener('click',()=>{ S.custom={tailoring:[],enchanting:[]}; S.sell={}; S.matOverrides={}; S.deOverrides={}; rebuildTables(); save(); renderAll(); toast('Overrides dropped.'); });
+$('dataExport').addEventListener('click',()=>copyText(JSON.stringify(sharedDoc(),null,1),'Export copied'));
+$('dataImportBtn').addEventListener('click',()=>{ try{ const s=normalize(JSON.parse($('jsonImport').value)); s.rev=S.rev; S=s; rebuildTables(); save(); syncHeader(); renderAll(); $('jsonImport').value=''; toast('Imported.'); }catch(err){ toast('Import failed: '+err.message); } });
 $('dataReset').addEventListener('click',()=>{ $('resetConfirm').hidden=false; }); $('dataResetNo').addEventListener('click',()=>{ $('resetConfirm').hidden=true; });
-$('dataResetYes').addEventListener('click',()=>{ const rev=S.rev; S=freshState(); S.rev=rev; deleteObserved({all:true}).then(()=>save()); $('resetConfirm').hidden=true; syncHeader(); applyTheme(); renderAll(); toast('Reset.'); });
+$('dataResetYes').addEventListener('click',()=>{ const rev=S.rev; S=normalize(freshState()); S.rev=rev; rebuildTables(); deleteObserved({all:true}).then(()=>save()); $('resetConfirm').hidden=true; syncHeader(); renderAll(); toast('Reset.'); });
+$('dCharRename').addEventListener('click',()=>{ const from=$('dChar').value, to=$('dCharName').value.trim(); if(!to||to===from||S.chars[to]) return toast(S.chars[to]?'That name exists.':'Type a new name.'); S.chars[to]=S.chars[from]; delete S.chars[from]; if(S.activeChar===from) S.activeChar=to; $('dCharName').value=''; save(); syncHeader(); renderAll(); toast(`Renamed to ${to}.`); });
+$('dCharDelete').addEventListener('click',()=>{ const n=$('dChar').value; if(Object.keys(S.chars).length<2) return toast('The last character stays.'); delete S.chars[n]; if(S.activeChar===n) S.activeChar=Object.keys(S.chars)[0]; save(); syncHeader(); renderAll(); toast(`Deleted ${n}.`); });
 
-syncHeader(); applyTheme();
-setMode(S.ui.mode||((matchMedia('(pointer:coarse)').matches||innerWidth<900)?'session':'plan'),true);
+syncHeader(); applyTheme(); setView(prefs.tab); setPlanTab(prefs.planTab);
 renderAll(); setSync();
-// Boot: the page is already live on localStorage; now swap in the shared document, then the data files.
 loadRemote().then(loadDataFiles).then(()=>{ if(API) sync.poll=setInterval(pollHealth,15000); });
 </script>
 

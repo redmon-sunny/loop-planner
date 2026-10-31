@@ -13,7 +13,9 @@ Run (key in .env on the homelab, never in the shell history):
   python3 backend/fdb_seed.py --inspect          # ~4 calls: the objects whose shape is still unconfirmed, then exit
   python3 backend/fdb_seed.py                    # full seed; refuses above --max-calls (500) unless --yes
 
-Field mappings were fixed on 2026-10-30 against build 1.60.1.70658 from a real --inspect run. Shapes seen:
+Field mappings were fixed on 2026-10-30 against build 1.60.1.70658 from a real --inspect run. Reagents map to
+planner mat ids by Classic item id first, then normalised name; the page also aliases by both, so a mat never
+splits into two ids between the seed tables and a ForeverDB build. Shapes seen:
   recipe:  spellId, name, category{name, parent{name}}, skill{orange,yellow,green,grey}, requiredLevel,
            makes{itemId,name,count,quality} | null, effect, reagents[{itemId,name,count}], tools, learnedFrom{...},
            newInForever, changedFromClassic[], classic{reagents}, speculation
@@ -240,17 +242,23 @@ def map_de_row(row, mat_for):
 # ---------- assembly ----------
 def build_output(recipes, items, de_rows, idmap, build, client):
     """recipes: {prof: [map_recipe()]}, items: {itemId: map_item()}, de_rows: raw /disenchant rows."""
-    name_to_mat = {v['name'].lower(): k for k, v in idmap.items() if not k.startswith('_') and v.get('name')}
+    norm = lambda n: re.sub(r'[^a-z0-9]+', ' ', str(n or '').lower()).strip()
+    name_to_mat = {norm(v['name']): k for k, v in idmap.items() if not k.startswith('_') and v.get('name')}
+    item_to_mat = {v['id']: k for k, v in idmap.items() if not k.startswith('_') and v.get('id')}
 
     def mat_id_for(iid, name):
-        m = name_to_mat.get(name.lower())
+        m = item_to_mat.get(iid) if iid else None       # Classic id still valid in Forever
+        if not m:
+            m = name_to_mat.get(norm(name))             # same name, new or unknown id
         if m:
-            if iid:
-                idmap[m]['id'] = iid
+            if iid and idmap[m].get('id') != iid:
+                idmap[m]['id'] = iid; item_to_mat[iid] = m
             return m
         s = slug(name)
         idmap[s] = {'id': iid, 'name': name}
-        name_to_mat[name.lower()] = s
+        name_to_mat[norm(name)] = s
+        if iid:
+            item_to_mat[iid] = s
         return s
 
     mats, out = {}, {'source': 'foreverdb', 'build': build, 'client': client,
