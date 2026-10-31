@@ -20,9 +20,11 @@ loop-planner/
     lua_table.py          Lua table-literal parser used by sv_parse.py (no Lua runtime)
     mat_item_ids.json     planner mat id <-> WoW item id/name
     state_api.py          shared-state HTTP service (state/state.json) — see "Shared state"
+    sv_pull.sh            cron: pull SavedVariables from the desktop over SSH, then sv_parse.py
     test_state_api.py     unit tests for it (stdlib)
     headless_check.py     Playwright page check (dev only)
-  state/                  state.json, written only by the API; git-ignored
+  scripts/Enable-SvPull.ps1   desktop one-time: OpenSSH Server + core-01's key (read-only pull of the WoW folder)
+  state/                  state.json and sv/ (pulled .lua files); git-ignored
   docker-compose.yml      nginx:alpine on :8087 + python:3.12-alpine state API behind /api/
   nginx.conf
 ```
@@ -109,6 +111,29 @@ python backend/sv_parse.py --auctionator "<path>/Auctionator.lua" --observed-csv
 
 Windows scheduled task or a post-logout hook: run the command above, then copy `data/*.json` to the homelab share.
 Or run it on the homelab against a synced copy of the `WTF` folder.
+
+### Getting the SavedVariables off the desktop — `sv_pull.sh` + `scripts/Enable-SvPull.ps1`
+
+core-01 pulls `Auctionator.lua` and `ForeverDB.lua` from the gaming desktop over SSH on a timer and runs
+`sv_parse.py`; the desktop needs nothing but the Windows OpenSSH Server feature. The WoW folder is only ever read.
+
+Desktop, once, elevated PowerShell (core-01's public key from `cat ~/.ssh/id_ed25519.pub`):
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+C:\scripts\Enable-SvPull.ps1 -CoreKey "ssh-ed25519 AAAA… redmon@core-01" -LanCidr 192.168.1.0/24
+```
+Installs sshd, starts it on boot, opens TCP 22 on the Private profile for the LAN only, authorises the key.
+
+core-01, once:
+```sh
+ssh <winuser>@<desktop> 'echo ok'                 # accept the host key
+printf "SV_HOST=<winuser>@<desktop>\nSV_DIR='C:/Program Files (x86)/World of Warcraft/_classic_/WTF/Account/<ACCOUNT>/SavedVariables'\n" >> .env
+sh backend/sv_pull.sh                             # first pull by hand; then
+crontab -e   →   */30 * * * *  cd $HOME/srv/loop-planner && sh backend/sv_pull.sh >> state/sv_pull.log 2>&1
+```
+A run while nothing changed is one SSH round-trip and no parse; desktop asleep is a silent exit; a pulled file is
+parsed into `data/` at once. Copies live in `state/sv/` (git-ignored, never served) with the original mtimes, so
+`prices.json`'s `fileModified` is the real scan time.
 
 ### Recipes and disenchant yields — `fdb_seed.py` (v0.5, mapped against build 1.60.1.70658)
 
