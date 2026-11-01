@@ -144,6 +144,15 @@ main.view{display:grid;gap:14px;max-width:1100px}
 .strip .cell{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13.5px;white-space:nowrap}
 .strip .cell.hot{border-color:var(--accent);background:var(--accent-soft)}
 .pad .btn .body{display:none} .pad.bodies .btn .body{display:block}
+/* ---- 4b: rank state, bag counts, sell line ---- */
+.donow .line.warn{border-left-color:var(--warn)}
+.stop details.act.train summary .h{color:var(--warn)} .stop details.act.urgent summary .h{color:var(--bad)}
+.stop .why button.ack{min-height:34px;padding:2px 10px;font-size:12.5px;margin-left:6px}
+.onhand{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px}
+.onhand .oh{display:grid;grid-template-columns:1fr auto;gap:4px 8px;align-items:center;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.onhand .oh .n{font-weight:700;font-size:14px;overflow-wrap:anywhere} .onhand .oh .d{grid-column:1/-1;font-size:12px;color:var(--muted)}
+.onhand .oh .stepper button{min-width:44px;min-height:44px;font-size:18px} .onhand .oh .stepper input{width:64px;min-height:44px;font-size:16px}
+.sell{font-size:13.5px;color:var(--muted);margin-top:4px} .sell b{color:var(--ink)}
 .pad .btn{min-height:56px}
 button.big{min-height:52px;font-size:16px;padding:0 18px}
 @media (max-width:640px){ .stop summary{grid-template-columns:1fr} .stop .why{padding-left:4px} header{padding-block:10px 6px} .hdr-right label{font-size:10px} input[type=number]{width:72px} nav.top button{font-size:15px;padding:8px 4px} }
@@ -163,6 +172,7 @@ button.big{min-height:52px;font-size:16px;padding:0 18px}
         <button id="charAdd" class="ghost" title="Add a character">+</button>
       </span>
     </label>
+    <label>Level <input type="number" id="chLvl" min="1" max="60" value="1" style="width:64px" title="Character level: decides which wand and which trainer rank matter"></label>
     <label>Tailoring <input type="number" id="skTail" min="1" max="300" value="1"></label>
     <label>Enchanting <input type="number" id="skEnch" min="1" max="300" value="1"></label>
   </div>
@@ -188,6 +198,11 @@ button.big{min-height:52px;font-size:16px;padding:0 18px}
   <div class="s-card">
     <h2>This stop <small>one action per profession; tap a line for the math</small></h2>
     <div id="stopOut" class="stop"></div>
+    <div id="sellOut" class="sell"></div>
+  </div>
+  <div class="s-card">
+    <h2>In the bag <small>counts for this stop's picks — turns "casts to floor" into "casts now"</small></h2>
+    <div class="onhand" id="onHand"></div>
   </div>
   <div class="s-card">
     <h2>Buy greens under <small>max buyout at <span id="ceilEcho"></span>% of disenchant value, by item level</small></h2>
@@ -370,8 +385,8 @@ mats: [
  {id:'coarse_thread',itemId:2320,name:'Coarse Thread',vendor:10},{id:'fine_thread',itemId:2321,name:'Fine Thread',vendor:100},{id:'silken_thread',itemId:4291,name:'Silken Thread',vendor:500},{id:'red_dye',itemId:2604,name:'Red Dye',vendor:50},
  {id:'cerulean_dye',name:'Cerulean Dye',vendor:null},{id:'heavy_leather',itemId:4234,name:'Heavy Leather',vendor:null},{id:'minor_mana_pot',itemId:2455,name:'Minor Mana Potion',vendor:null},{id:'elixir_wisdom',itemId:3383,name:'Elixir of Wisdom',vendor:null},
  {id:'small_lustrous_pearl',itemId:5498,name:'Small Lustrous Pearl',vendor:null},{id:'shadowgem',itemId:1210,name:'Shadowgem',vendor:null},{id:'silver_bar',itemId:2842,name:'Silver Bar',vendor:null},
- {id:'mote',name:'Mote of Magic',vendor:20,flag:'vendor price unverified'},{id:'simple_wood',itemId:4470,name:'Simple Wood',vendor:5},{id:'star_wood',itemId:11291,name:'Star Wood',vendor:50},{id:'copper_rod',itemId:6217,name:'Copper Rod',vendor:124},{id:'silver_rod',itemId:6338,name:'Silver Rod',vendor:null},
- {id:'maple_seed',itemId:17034,name:'Maple Seed',vendor:null},{id:'leaded_vial',itemId:10290,name:'Leaded Vial',vendor:20},
+ {id:'mote',itemId:247786,name:'Mote of Magic',vendor:10,flag:'ForeverDB: 10c at Enchanting Supplies vendors; also crafted 1 Strange Dust → 3 at skill 1'},{id:'simple_wood',itemId:4470,name:'Simple Wood',vendor:38},{id:'star_wood',itemId:11291,name:'Star Wood',vendor:4500,flag:'Classic vendor 45s — most of a Lesser Mystic Wand\'s cost'},{id:'copper_rod',itemId:6217,name:'Copper Rod',vendor:124},{id:'silver_rod',itemId:6338,name:'Silver Rod',vendor:null},
+ {id:'maple_seed',itemId:17034,name:'Maple Seed',vendor:null},{id:'leaded_vial',itemId:10290,name:'Leaded Vial',vendor:200},
  {id:'strange_dust',itemId:10940,name:'Strange Dust',vendor:null,de:true},{id:'soul_dust',itemId:11083,name:'Soul Dust',vendor:null,de:true},{id:'vision_dust',itemId:11137,name:'Vision Dust',vendor:null,de:true},{id:'dream_dust',itemId:11176,name:'Dream Dust',vendor:null,de:true},{id:'illusion_dust',itemId:16204,name:'Illusion Dust',vendor:null,de:true},
  {id:'lme',itemId:10938,name:'Lesser Magic Essence',vendor:null,de:true},{id:'gme',itemId:10939,name:'Greater Magic Essence',vendor:null,de:true},{id:'lae',itemId:10998,name:'Lesser Astral Essence',vendor:null,de:true},{id:'gae',itemId:11082,name:'Greater Astral Essence',vendor:null,de:true},
  {id:'lmye',itemId:11134,name:'Lesser Mystic Essence',vendor:null,de:true},{id:'gmye',itemId:11135,name:'Greater Mystic Essence',vendor:null,de:true},{id:'lne',itemId:11174,name:'Lesser Nether Essence',vendor:null,de:true},{id:'gne',itemId:11175,name:'Greater Nether Essence',vendor:null,de:true},
@@ -435,18 +450,21 @@ const PACKS_DEFAULT={
  de:{name:'Disenchant batch',note:'Bag 4 is the DE bag. A disenchants slot 1; sort (X) after each so the next green moves up, or use LB+A/B/X for slots 2–4. One press, one cast.',
   slots:['#showtooltip Disenchant\n/cast Disenchant\n/use 4 1','/click StaticPopup1Button1','/run C_Container.SortBags()',DE_COUNT_MACRO,'/cast Disenchant\n/use 4 2','/cast Disenchant\n/use 4 3','/cast Disenchant\n/use 4 4','/stopcasting'],
   labels:['Disenchant bag 4 · 1','Confirm popup','Sort bags','Count greens','Disenchant bag 4 · 2','Disenchant bag 4 · 3','Disenchant bag 4 · 4','Cancel cast'],
-  check:['Greens into bag 4, then Sort','A until the bag is empty (B on the popup)','Log each result in the DE logger','Dust and essence to the bank alt or AH in stacks of 5']},
- craft:{name:'Craft + enchant',note:'A casts the cheapest skill-up enchant per point right now, on your own gear. Re-enchanting the same slot asks to replace; B confirms. X is the runner-up.',
+  check:['Greens into bag 4, then Sort','A until the bag is empty (B on the popup)','Log each result in the DE logger','Dust and essence to the bank alt, or post as commodities at unit price (12/24/48 h, 5% cut)']},
+ craft:{name:'Craft + enchant',note:'A casts the cheapest skill-up enchant per point right now, on your own gear — the slot must hold an item (keep a vendor white in wrist/chest/feet/back as an enchant target). Re-enchanting the same slot asks to replace; B confirms. X is the runner-up.',
   slots:['#showtooltip\n/cast {ENCH1}\n/use {SLOT1}','/click StaticPopup1Button1','#showtooltip\n/cast {ENCH2}\n/use {SLOT2}',DE_COUNT_MACRO,'/cast Disenchant\n/use 4 1','/cast Tailoring','/cast Enchanting','/run C_Container.SortBags()'],
   labels:['{ENCH1} ({ENCH1_CPP}/pt)','Confirm popup','{ENCH2} ({ENCH2_CPP}/pt)','Count greens','Disenchant bag 4 · 1','Open Tailoring','Open Enchanting','Sort bags'],
   check:['Trainer first: new ranks if skill allows','Tailoring window: Create All on what the bag holds','LB+A through the greens','A until the next floor ({FLOOR}) or mats run out','Bags and spare enchants to the group mailbox']},
  ah:{name:'AH + mail',note:'A prints the buyout ceilings into chat so they are on screen beside the AH. LB+B prints what the next floor still needs; LB+X what you can sell.',
   slots:['/run print("{CEILINGS}")','/cast Disenchant\n/use 4 1','/click StaticPopup1Button1',DE_COUNT_MACRO,'/run C_Container.SortBags()','/run print("{NEED}")','/run print("{SURPLUS}")','/stopcasting'],
   labels:['Print buyout ceilings','Disenchant bag 4 · 1','Confirm popup','Count greens','Sort bags','Print shopping list','Print surplus','Cancel cast'],
-  check:['Full Auctionator scan first','Buy greens under the ceiling (A prints it)','List dust and essence in stacks of 5','Mail greens to bag 4, cloth to the tailor','Log out so the scan writes to disk']},
+  check:['Full Auctionator scan first','Greens are per-item listings: filter by level and quality, buy under the ceiling (A prints it)','Post dust and essence as commodities: unit price at or just under the current lowest','Mail greens to bag 4, cloth to the tailor','Log out so the scan writes to disk']},
 };
 const WAND_FLOORS=[{skill:10,name:'Lesser Magic Wand',lvl:5},{skill:70,name:'Greater Magic Wand',lvl:13},{skill:155,name:'Lesser Mystic Wand',lvl:26}];
-const TAIL_GATES=[{skill:50,name:'Journeyman',lvl:10},{skill:125,name:'Expert',lvl:20},{skill:200,name:'Artisan',lvl:35}];
+// Rank gates: skill/level to train, the cap you sit at until you do (prevCap), the cap it unlocks, and the Horde trainer (C = Classic placement, verify).
+const TAIL_GATES=[{skill:50,name:'Journeyman',lvl:10,prevCap:75,cap:150,where:'Rhiannon Davis, Undercity'},{skill:125,name:'Expert',lvl:20,prevCap:150,cap:225,where:'Josef Gregorian, Undercity'},{skill:200,name:'Artisan',lvl:35,prevCap:225,cap:300,where:'Daryl Stack, Tarren Mill'}];
+const ENCH_GATES=[{skill:50,name:'Journeyman',lvl:10,prevCap:75,cap:150,where:'Lavinia Crowe, Undercity'},{skill:125,name:'Expert',lvl:20,prevCap:150,cap:225,where:'Hgarth, Sun Rock Retreat (Stonetalon) — a trip, not a town stop'},{skill:200,name:'Artisan',lvl:35,prevCap:225,cap:300,where:'Annora, inside Uldaman (group)'}];
+const SLOT_NAMES={9:'wrist',5:'chest',15:'back',8:'feet',10:'hands',17:'off-hand',16:'main hand'};
 
 // ---------- state ----------
 // Two layers. SRC is the table source (data/recipes.json from ForeverDB, or the Classic SEED on file://): never in the
@@ -457,11 +475,12 @@ const KEY='wowf-loop-planner-v2', SRC_KEY=KEY+'-src', PREFS_KEY=KEY+'-device', S
 const clone=o=>JSON.parse(JSON.stringify(o));
 const THRESH={closePts:15, staleHours:24, provisional:true};   // tuned in stage 4b against real prices
 const normName=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+const isPlainObj=v=>v&&typeof v==='object'&&!Array.isArray(v);
 function seedSrc(){ return {source:'seed',build:null,client:null,tailoring:clone(SEED.tailoring),enchanting:clone(SEED.enchanting),mats:clone(SEED.mats),de:clone(SEED.de),stats:null}; }
 let SRC=(()=>{ try{ const c=JSON.parse(localStorage.getItem(SRC_KEY)||'null'); if(c&&Array.isArray(c.tailoring)&&c.build) return c; }catch(e){} return seedSrc(); })();
 function freshState(){
   return { prices:clone(SEED.examplePrices), priceManual:{}, priceExample:true,
-    chars:{'Main':{tail:1,ench:1}}, activeChar:'Main', observed:[], obsDeleted:{}, packs:clone(PACKS_DEFAULT), checks:{},
+    chars:{'Main':{tail:1,ench:1,lvl:1}}, activeChar:'Main', observed:[], obsDeleted:{}, packs:clone(PACKS_DEFAULT), checks:{}, onhand:{},
     custom:{tailoring:[],enchanting:[]}, sell:{}, matOverrides:{}, deOverrides:{}, matAliases:{},
     ui:{tailValueMode:'de',obsMin:20,planTailTo:150,planEnchTo:150,pack:'de',ceil:70} };
 }
@@ -499,6 +518,7 @@ function normalize(s){
   const f=freshState(); for(const k of Object.keys(f)) if(s[k]===undefined) s[k]=f[k]; for(const k of Object.keys(f.ui)) if(s.ui[k]===undefined) s.ui[k]=f.ui[k];
   for(const k of Object.keys(PACKS_DEFAULT)) if(!s.packs[k]) s.packs[k]=clone(PACKS_DEFAULT[k]);
   if(s.packs.farm&&!PACKS_DEFAULT.farm){ delete s.packs.farm; delete (s.checks||{}).farm; if(s.ui.pack==='farm') s.ui.pack='de'; }
+  for(const c of Object.values(s.chars||{})) if(!(c.lvl>=1)) c.lvl=1; if(!isPlainObj(s.onhand)) s.onhand={};
   if(!s.chars[s.activeChar]) s.activeChar=Object.keys(s.chars)[0]; if(!Array.isArray(s.observed)) s.observed=[];
   if(!s.custom.tailoring) s.custom.tailoring=[]; if(!s.custom.enchanting) s.custom.enchanting=[];
   if(Array.isArray(s.tailoring)||Array.isArray(s.enchanting)){            // pre-4a: lift what was yours out of the embedded tables
@@ -650,6 +670,19 @@ function bestTailoring(){ const skill=cur().tail; return T.tailoring.filter(r=>s
 function craftNow(){ const all=bestTailoring(); const ok=all.filter(x=>!x.r.output.bop&&x.x.unp.length===0&&isFinite(x.x.netcpp)); const skipped=all.filter(x=>!ok.includes(x)); return {pick:ok[0]||null,skipped,any:all.length>0}; }
 function nextFloor(){ return WAND_FLOORS.find(f=>f.skill>cur().ench)||null; }
 function nextGate(){ return TAIL_GATES.find(f=>f.skill>cur().tail)||null; }
+// 4b: the wand that matters is the next one your LEVEL can equip, not the next skill number.
+function wandTarget(){ const c=cur(); const f=WAND_FLOORS.find(w=>w.lvl>=(c.lvl||1))||WAND_FLOORS[WAND_FLOORS.length-1]; return {f,ready:c.ench>=f.skill,need:Math.max(0,f.skill-c.ench),levels:Math.max(0,f.lvl-(c.lvl||1))}; }
+// 4b: rank status against the next trainer gate and the cap it lifts. Skill above a cap proves the rank was trained; the ack button records it otherwise.
+function profStatus(kind){ const c=cur(); const skill=kind==='tail'?c.tail:c.ench; const gates=kind==='tail'?TAIL_GATES:ENCH_GATES; const capKey=kind+'Cap'; let trained=c[capKey]||75; for(const x of gates) if(skill>x.prevCap&&x.cap>trained) trained=x.cap; if(c[capKey]!==trained) c[capKey]=trained;
+  const g=gates.find(x=>skill<=x.prevCap&&x.cap>trained)||null; if(!g) return {skill,g:null,room:Infinity,state:'max',kind,msg:'Artisan'};
+  const room=g.prevCap-skill; const lvl=c.lvl||1; if(skill>=g.skill&&lvl>=g.lvl) return {skill,g,room,state:'train',kind,msg:`Train ${g.name} — ${g.where}`};
+  if(skill>=g.skill) return {skill,g,room,state:room===0?'capped':'nearcap',kind,msg:room===0?`Capped at ${g.prevCap} until level ${g.lvl} (${g.name})`:`${room} points of room before the ${g.prevCap} cap; ${g.name} at level ${g.lvl}`};
+  return {skill,g,room,state:'open',kind,msg:`${g.skill-skill} to ${g.name} (lvl ${g.lvl})`}; }
+// 4b: raw inputs per craft (bolts expanded to cloth) — what you actually carry; casts possible from the bag
+function rawInputs(r,mult=1,acc={}){ for(const i of r.inputs){ const sub=T.tailoring.find(t=>t.id===i.mat); if(sub) rawInputs(sub,mult*i.qty,acc); else acc[i.mat]=(acc[i.mat]||0)+i.qty*mult; } return acc; }
+function onhand(){ if(!isPlainObj(S.onhand)) S.onhand={}; if(!isPlainObj(S.onhand[S.activeChar])) S.onhand[S.activeChar]={}; return S.onhand[S.activeChar]; }
+function castsFrom(mats){ const h=onhand(); let n=Infinity,tracked=false; for(const [id,q] of Object.entries(mats)){ const m=matById(id); if(m&&m.vendor!=null) continue; tracked=true; n=Math.min(n,Math.floor((h[id]||0)/q)); } return tracked?n:null; }
+function enchantNowAt(skill){ const eff=effectivePrices(); return T.enchanting.filter(r=>!r.consumesRod&&r.produces!=='item'&&selfSlot(r.name)&&skillChance(skill,r.skill)>0).map(r=>({r,x:enchRow(r,skill,eff,true)})).filter(e=>e.x.unp.length===0&&isFinite(e.x.cpp)).sort((a,b)=>a.x.cpp-b.x.cpp)[0]||null; }
 
 // ---------- solvers ----------
 function solveTailoring(from,to,mode,disenchantAll){
@@ -767,42 +800,71 @@ function enchantNow(){
 function priceAge(){ const scan=S.ui.lastScan?new Date(S.ui.lastScan):null; if(!scan) return {state:S.priceExample?'example':(Object.keys(S.prices).length?'typed':'none'),hours:null}; const h=(Date.now()-scan)/36e5; return {state:h>THRESH.staleHours?'stale':'fresh',hours:h}; }
 function ageText(h){ return h==null?'':h<1?'<1h':h<48?Math.round(h)+'h':Math.round(h/24)+'d'; }
 function renderNow(){
-  const c=cur(); $('nowChar').textContent=S.activeChar; const fl=nextFloor(), g=nextGate();
+  const c=cur(); const lvl=c.lvl||1; $('nowChar').textContent=`${S.activeChar} · level ${lvl}`; const fl=nextFloor();
   const en=enchantNow(), cn=craftNow(); const e1=en.pick, t1=cn.pick; const ceil=(S.ui.ceil||70)/100; $('ceilEcho').textContent=Math.round(ceil*100);
-  // one sentence per profession
-  const lines=[];
-  if(e1){ const pts=fl?fl.skill-c.ench:0; const casts=fl?Math.ceil(pts/e1.x.ch):0; const need=e1.r.inputs.map(i=>`${Math.ceil(i.qty*casts)} ${matName(i.mat)}`).join(' + ');
-    if(fl&&casts<=THRESH.closePts) lines.push(['ench','good',`<b>Enchanting ${c.ench}:</b> ${casts} cast${casts===1?'':'s'} of <b>${esc(e1.r.name)}</b> (${esc(need)}) and you ding <b>${esc(fl.name)}</b>.`]);
-    else if(fl) lines.push(['ench','',`<b>Enchanting ${c.ench}:</b> <b>${esc(e1.r.name)}</b> at ${fmt(e1.x.cpp)}/pt. ${casts} casts to ${fl.skill}; cast once per ${e1.r.inputs.map(i=>i.qty+' '+matName(i.mat)).join(' + ')} in the bag, then stop.`]);
-    else lines.push(['ench','',`<b>Enchanting ${c.ench}:</b> all wand floors reached; <b>${esc(e1.r.name)}</b> is the cheapest point at ${fmt(e1.x.cpp)}/pt.`]); }
-  else if(en.any) lines.push(['ench','bad',`<b>Enchanting ${c.ench}:</b> prices missing for ${esc(en.missing.map(matName).join(', '))} — nothing can be costed. Fill Prices or load a scan.`]);
-  else lines.push(['ench','',`<b>Enchanting ${c.ench}:</b> nothing self-castable at this skill; walk past the trainer.`]);
-  if(t1) lines.push(['tail',t1.x.net>=0?'good':'',`<b>Tailoring ${c.tail}:</b> craft <b>${esc(t1.r.name)}</b>${t1.r.flag?' <span class="flag">(C)</span>':''}, ${(t1.x.ch*100).toFixed(0)}% skill-up, net ${t1.x.net>=0?'+':''}${fmt(t1.x.net)} per craft${t1.r.output.quality==='white'?'':' after disenchant'}.`]);
-  else if(cn.any){ const u=[...new Set(cn.skipped.flatMap(x=>x.x.unp))].map(matName); lines.push(['tail','bad',`<b>Tailoring ${c.tail}:</b> ${u.length?'prices missing for '+esc(u.slice(0,4).join(', '))+(u.length>4?'…':''):'every craft in range is bind-on-pickup'} — nothing can be costed.`]); }
-  else lines.push(['tail','',`<b>Tailoring ${c.tail}:</b> nothing in your skill window; walk past.`]);
+  const wt=wandTarget(), es=profStatus('ench'), ts=profStatus('tail'); const pa=priceAge(); const px=pa.state==='example'?' <span class="muted">(example prices)</span>':'';
+  const matsLine=mats=>Object.entries(mats).map(([id,q])=>`${fmtQty(q)} ${esc(matName(id))}`).join(' + ');
+  const ack=p=>`<button class="ghost ack" data-trained="${p.kind}" data-cap="${p.g.cap}">Already trained</button>`;
+  const lines=[], stop=[];
+  // ---- Enchanting: rod → rank state → cast line (projected only to the recipe's gray point)
+  if(c.ench<2){ lines.push(['ench','warn',`<b>Enchanting ${c.ench}:</b> Runed Copper Rod first — Copper Rod + 1 Mote of Magic from the Enchanting supply vendor (Undercity, not Brill).`]); stop.push({k:'Rod',cls:'train',head:'<b>Runed Copper Rod</b> before any enchant',why:'1 Copper Rod + 1 Mote of Magic, both vendor. No rod, no enchants; the rod recipe is the first skill point.'}); }
+  if(es.state==='train'){ lines.push(['ench','warn',`<b>Enchanting ${c.ench}:</b> train ${es.g.name} — ${esc(es.g.where)}.`]); stop.push({k:'Train',cls:'train',head:`<b>${es.g.name} Enchanting</b> — ${esc(es.g.where)}`,why:`Skill-ups past ${es.g.prevCap} are lost until you train. ${ack(es)}`}); }
+  if(es.state==='capped'){ lines.push(['ench','bad',`<b>Enchanting ${c.ench}:</b> capped at ${es.g.prevCap} until level ${es.g.lvl}. Stop casting; bank dust.`]); stop.push({k:'Enchant',cls:'urgent',head:`<b>Capped at ${es.g.prevCap}</b> — stop casting`,why:`${es.g.name} opens at level ${es.g.lvl} (${es.g.lvl-lvl} levels). Disenchant and bank; don't burn dust on casts that can't skill up.`}); }
+  else if(e1){ const raw=rawInputs(e1.r); const n=castsFrom(raw); const stopAt=Math.min(fl?fl.skill:300,e1.r.skill[3]); const toStop=Math.max(0,Math.ceil((stopAt-c.ench)/e1.x.ch)); const grayFirst=fl&&stopAt<fl.skill; const nxt=grayFirst?enchantNowAt(stopAt):null;
+    const casts=n==null?null:Math.min(n,toStop,es.room); const pts=casts==null?null:Math.min(Math.round(casts*e1.x.ch),stopAt-c.ench);
+    const horizon=grayFirst?`${toStop} casts to ${stopAt} (gray)${nxt?`, then ${esc(nxt.r.name)}`:''}`:`${toStop} casts to ${fl?fl.name+' ('+fl.skill+')':'cap'}`;
+    const slot=SLOT_NAMES[e1.slot]||('slot '+e1.slot);
+    if(casts==null) lines.push(['ench',fl&&toStop<=THRESH.closePts?'good':'',`<b>Enchanting ${c.ench}:</b> <b>${esc(e1.r.name)}</b> on your ${slot}, ${matsLine(raw)} per cast. ${horizon}. Fill "In the bag" for casts-now.`]);
+    else if(casts===0) lines.push(['ench','',`<b>Enchanting ${c.ench}:</b> <b>${esc(e1.r.name)}</b> needs ${matsLine(raw)} per cast — none in the bag. ${horizon}.`]);
+    else lines.push(['ench',pts>=toStop*e1.x.ch?'good':'',`<b>Enchanting ${c.ench}:</b> <b>${casts} cast${casts===1?'':'s'}</b> of <b>${esc(e1.r.name)}</b> on your ${slot} → ${c.ench+pts}. ${horizon}.`]);
+    stop.push({k:'Enchant',head:`<b>${esc(e1.r.name)}</b> on your ${slot} · ${matsLine(raw)}/cast · ${fmt(e1.x.cpp)}/pt${px}`,
+      why:`Skill-up ${(e1.x.ch*100).toFixed(0)}% (${e1.r.skill.join('/')}); mats ${fmt(e1.x.cost)}. ${horizon}. ${e1.x.srcs.length?'Mats via '+esc(e1.x.srcs.join('; '))+'. ':''}${en.runner?`Runner-up: ${esc(en.runner.r.name)} at ${fmt(en.runner.x.cpp)}/pt. `:''}The ${slot} must hold an item — a vendor white is fine.`}); }
+  else if(en.any) { lines.push(['ench','bad',`<b>Enchanting ${c.ench}:</b> prices missing for ${esc(en.missing.map(matName).join(', '))} — nothing can be costed. Fill Prices or load a scan.`]); stop.push({k:'Enchant',head:`<span class="flag">prices missing:</span> ${esc(en.missing.map(matName).join(', '))}`,why:'Every self-castable recipe in range needs one of these. Type a price on Plan → Prices, or load a scan.'}); }
+  else { lines.push(['ench','',`<b>Enchanting ${c.ench}:</b> nothing self-castable at this skill.`]); stop.push({k:'Enchant',head:'nothing castable on your own gear at this skill',why:''}); }
+  // ---- Tailoring: rank state → craft line
+  if(ts.state==='train'){ lines.push(['tail','warn',`<b>Tailoring ${c.tail}:</b> train ${ts.g.name} — ${esc(ts.g.where)}.`]); stop.push({k:'Train',cls:'train',head:`<b>${ts.g.name} Tailoring</b> — ${esc(ts.g.where)}`,why:`Skill-ups past ${ts.g.prevCap} are lost until you train. ${ack(ts)}`}); }
+  if(ts.state==='capped'){ lines.push(['tail','bad',`<b>Tailoring ${c.tail}:</b> capped at ${ts.g.prevCap} until level ${ts.g.lvl}. Bank cloth; bags only.`]); stop.push({k:'Craft',cls:'urgent',head:`<b>Capped at ${ts.g.prevCap}</b> — stop crafting`,why:`${ts.g.name} opens at level ${ts.g.lvl} (${ts.g.lvl-lvl} levels). Bank cloth; make bags for the group if you must craft.`}); }
+  else if(t1){ const raw=rawInputs(t1.r); const n=castsFrom(raw); const crafts=n==null?null:Math.min(n,ts.room); const pts=crafts==null?null:Math.round(crafts*t1.x.ch); const green=t1.r.output.quality!=='white';
+    const deNow=green&&crafts?` → DE ≈ ${Object.entries(t1.x.de.mats).filter(([,q])=>q*crafts>=0.5).map(([id,q])=>fmtQty(q*crafts)+' '+esc(matName(id))).join(', ')}`:'';
+    const flag=t1.r.flag?' <span class="flag" title="'+esc(t1.r.flag)+'">(C)</span>':'';
+    if(crafts==null) lines.push(['tail',t1.x.net>=0?'good':'',`<b>Tailoring ${c.tail}:</b> craft <b>${esc(t1.r.name)}</b>${flag}, ${matsLine(raw)} each, ${(t1.x.ch*100).toFixed(0)}% skill-up${green?', then disenchant':''}. Fill "In the bag" for crafts-now.`]);
+    else if(crafts===0) lines.push(['tail','',`<b>Tailoring ${c.tail}:</b> <b>${esc(t1.r.name)}</b>${flag} needs ${matsLine(raw)} per craft — none in the bag.`]);
+    else lines.push(['tail',t1.x.net>=0?'good':'',`<b>Tailoring ${c.tail}:</b> <b>${crafts} craft${crafts===1?'':'s'}</b> of <b>${esc(t1.r.name)}</b>${flag} → ${c.tail+pts}${deNow}.`]);
+    const why=cn.skipped.filter(x=>x.x.netcpp<t1.x.netcpp).slice(0,3).map(x=>`${esc(x.r.name)} (${x.r.output.bop?'bind-on-pickup':'unpriced: '+esc(x.x.unp.map(matName).join(', '))})`).join(', ');
+    stop.push({k:'Craft',head:`<b>${esc(t1.r.name)}</b>${flag} · ${matsLine(raw)}/craft${green?` → ${t1.x.feeds}`:' · white, nothing to disenchant'}`,why:`${(t1.x.ch*100).toFixed(0)}% skill-up (${t1.r.skill.join('/')}); mats ${fmt(t1.x.cost)}${px}${green?`, disenchant value ${fmt(t1.x.value)}`:''}; net ${t1.x.net>=0?'+':''}${fmt(t1.x.net)} per craft, ${fmt(t1.x.netcpp)} per point.${why?' Skipped: '+why+'.':''}`}); }
+  else if(cn.any){ const u=[...new Set(cn.skipped.flatMap(x=>x.x.unp))].map(matName); lines.push(['tail','bad',`<b>Tailoring ${c.tail}:</b> ${u.length?'prices missing for '+esc(u.slice(0,4).join(', '))+(u.length>4?'…':''):'every craft in range is bind-on-pickup'} — nothing can be costed.`]); stop.push({k:'Craft',head:`<span class="flag">${u.length?'prices missing:':'all bind-on-pickup'}</span> ${esc(u.slice(0,4).join(', '))}`,why:`${cn.skipped.length} craft${cn.skipped.length>1?'s':''} in range, none fully priced.`}); }
+  else { lines.push(['tail','',`<b>Tailoring ${c.tail}:</b> nothing in your skill window; walk past.`]); stop.push({k:'Craft',head:'nothing in your skill window',why:''}); }
+  // ---- Wand pace by level
+  const wandMats={'Lesser Magic Wand':'1 Simple Wood + 1 Lesser Magic Essence','Greater Magic Wand':'1 Simple Wood + 2 Lesser Magic Essence','Lesser Mystic Wand':'1 Star Wood + 1 Lesser Mystic Essence'}[wt.f.name]||'';
+  const paceWhy=wt.ready?`Skill ${c.ench} ≥ ${wt.f.skill}. ${wt.levels?`Make it when you ding ${wt.f.lvl}`:'Make it now'}: ${wandMats}.`:(wt.levels?`${wt.need} points in ${wt.levels} level${wt.levels===1?'':'s'} ≈ ${Math.ceil(wt.need/wt.levels)} per level — ${wt.need>THRESH.closePts*wt.levels?'behind; this is the priority.':'on pace.'}`:`Level ${lvl} and ${wt.need} short — this stop's enchanting is for the wand.`);
+  stop.push({k:'Wand',cls:(!wt.ready&&wt.levels===0)?'urgent':'',head:wt.ready?`<b>${wt.f.name}</b> ready${wt.levels?` — equip at ${wt.f.lvl}`:' — make it now'}`:`<b>${wt.f.name}</b> needs Enchanting ${wt.f.skill} by level ${wt.f.lvl}`,why:paceWhy});
+  if(!wt.ready&&wt.levels===0) lines.push(['wand','bad',`<b>Wand:</b> level ${lvl} and ${wt.need} Enchanting short of ${wt.f.name}.`]);
   $('doNow').innerHTML=lines.map(([k,cls,html])=>`<div class="line ${cls}">${html}</div>`).join('');
-  const pa=priceAge(); $('doNowNote').textContent=pa.state==='example'?'Example prices: real numbers arrive with the first Auctionator scan.':pa.state==='stale'?`Prices are ${ageText(pa.hours)} old; the next pull refreshes them.`:pa.state==='none'?'No prices at all yet.':'';
-  // tiles, coloured by state
-  const greens=S.ui.bagGreens!=null?S.ui.bagGreens:null; const ePts=fl?fl.skill-c.ench:null, tPts=g?g.skill-c.tail:null;
-  $('nowTiles').innerHTML=[
-    {l:'Enchanting',v:c.ench,d:fl?`${ePts} to ${fl.name} (lvl ${fl.lvl})`:'all wand floors reached',cls:fl&&ePts<=THRESH.closePts?'good':''},
-    {l:'Tailoring',v:c.tail,d:g?`${tPts} to ${g.name} (lvl ${g.lvl})`:'Artisan reached',cls:g&&tPts<=THRESH.closePts?'good':''},
-    {l:'Prices',v:pa.state==='fresh'||pa.state==='stale'?ageText(pa.hours):pa.state,d:pa.state==='fresh'?'since last scan':pa.state==='stale'?'stale: pull a new scan':pa.state==='example'?'no scan loaded yet':pa.state==='typed'?'hand-entered':'none loaded',cls:pa.state==='fresh'?'good':pa.state==='stale'||pa.state==='example'?'warn':'bad'},
-    {l:'DE bag',v:greens==null?'—':greens,d:greens==null?'companion addon not loaded':greens>0?'greens waiting in bag 4':'bag 4 empty',cls:greens>0?'lit':''},
-  ].map(t=>`<div class="tile ${t.cls}"><div class="l">${t.l}</div><div class="v num">${t.v}</div><div class="d">${t.d}</div></div>`).join('');
-  // This Stop: one action per profession, math behind a tap
-  const stop=[];
-  if(e1){ const pts=fl?fl.skill-c.ench:0; const casts=fl?Math.ceil(pts/e1.x.ch):0; const need=e1.r.inputs.map(i=>`${Math.ceil(i.qty*casts)} ${matName(i.mat)}`).join(' + ');
-    stop.push({k:'Enchant',head:`<b>${esc(e1.r.name)}</b> on slot ${e1.slot} · ${fmt(e1.x.cpp)}/pt`,why:`${fl?`~${casts} casts to ${fl.skill} = ${esc(need)} (${fmt(e1.x.cpp*pts)}). `:''}${e1.x.srcs.length?'Mats via '+esc(e1.x.srcs.join('; '))+'. ':''}${en.runner?`Runner-up: ${esc(en.runner.r.name)} at ${fmt(en.runner.x.cpp)}/pt.`:''}`}); }
-  else if(en.any) stop.push({k:'Enchant',head:`<span class="flag">prices missing:</span> ${esc(en.missing.map(matName).join(', '))}`,why:'Every self-castable recipe in range needs one of these. Type a price on Plan → Prices, or load a scan.'});
-  else stop.push({k:'Enchant',head:'nothing castable on your own gear at this skill',why:''});
-  if(t1){ const why=cn.skipped.filter(x=>x.x.netcpp<t1.x.netcpp).slice(0,3).map(x=>`${esc(x.r.name)} (${x.r.output.bop?'bind-on-pickup':'unpriced: '+esc(x.x.unp.map(matName).join(', '))})`).join(', ');
-    stop.push({k:'Craft',head:`<b>${esc(t1.r.name)}</b>${t1.r.flag?' <span class="flag" title="'+esc(t1.r.flag)+'">(C)</span>':''} · ${(t1.x.ch*100).toFixed(0)}% skill-up · net ${t1.x.net>=0?'<span class="pos">+'+fmt(t1.x.net)+'</span>':'<span class="neg">'+fmt(t1.x.net)+'</span>'}`,why:`Mats ${fmt(t1.x.cost)}${t1.r.output.quality!=='white'?`, disenchant value ${fmt(t1.x.value)} (feeds ${t1.x.feeds})`:''}; ${fmt(t1.x.netcpp)} per point net.${why?' Skipped: '+why+'.':''}`}); }
-  else if(cn.any){ const u=[...new Set(cn.skipped.flatMap(x=>x.x.unp))].map(matName); stop.push({k:'Craft',head:`<span class="flag">${u.length?'prices missing:':'all bind-on-pickup'}</span> ${esc(u.slice(0,4).join(', '))}`,why:`${cn.skipped.length} craft${cn.skipped.length>1?'s':''} in range, none fully priced.`}); }
-  else stop.push({k:'Craft',head:'nothing in your skill window',why:''});
-  $('stopOut').innerHTML=stop.map((s,i)=>`<details class="act"><summary><span class="k">${s.k}</span><span class="h">${s.head}</span></summary><div class="why">${s.why||'<span class="muted">—</span>'}</div></details>`).join('');
-  // ceilings strip: a bracket with any unpriced mat shows a dash, never 0s
-  // highlight the bracket your own crafts feed right now (the Craft-now recipe's output item level), if any
+  $('doNowNote').textContent=pa.state==='example'?'Example prices: real numbers arrive with the first Auctionator scan.':pa.state==='stale'?`Prices are ${ageText(pa.hours)} old; the next pull refreshes them.`:pa.state==='none'?'No prices at all yet.':'';
+  // ---- tiles, coloured by state
+  const greens=S.ui.bagGreens!=null?S.ui.bagGreens:null; const stateOf=p=>p.state==='capped'?'bad':p.state==='train'?'warn':(p.state==='nearcap'&&p.room<=10)?'warn':'';
+  const enchD=(es.state==='capped'||es.state==='train')?es.msg:(wt.ready?`${wt.f.name} ready — equip at lvl ${wt.f.lvl}${wt.levels?` (${wt.levels} levels)`:' (now)'}`:`${wt.need} to ${wt.f.name} by lvl ${wt.f.lvl}${wt.levels?` (${wt.levels} levels)`:' — behind'}`);
+  const tiles=[
+    {l:'Enchanting',v:c.ench,d:enchD,cls:stateOf(es)||(wt.ready?'good':wt.levels===0?'bad':wt.need<=THRESH.closePts?'good':'')},
+    {l:'Tailoring',v:c.tail,d:ts.msg,cls:stateOf(ts)},
+    {l:'Prices',v:pa.state==='fresh'||pa.state==='stale'?ageText(pa.hours):pa.state,d:pa.state==='fresh'?'since last scan':pa.state==='stale'?'stale: pull a new scan':pa.state==='example'?'no scan yet — costs are placeholders':pa.state==='typed'?'hand-entered':'none loaded',cls:pa.state==='fresh'?'good':pa.state==='stale'||pa.state==='example'?'warn':pa.state==='typed'?'':'bad'},
+  ]; if(greens!=null) tiles.push({l:'DE bag',v:greens,d:greens>0?'greens waiting in bag 4':'bag 4 empty',cls:greens>0?'lit':''});
+  $('nowTiles').innerHTML=tiles.map(t=>`<div class="tile ${t.cls}"><div class="l">${t.l}</div><div class="v num">${t.v}</div><div class="d">${t.d}</div></div>`).join('');
+  // ---- This stop
+  $('stopOut').innerHTML=stop.map(s=>`<details class="act ${s.cls||''}"${s.cls?' open':''}><summary><span class="k">${s.k}</span><span class="h">${s.head}</span></summary><div class="why">${s.why||'<span class="muted">—</span>'}</div></details>`).join('');
+  $('stopOut').querySelectorAll('button[data-trained]').forEach(b=>b.addEventListener('click',ev=>{ ev.preventDefault(); cur()[b.dataset.trained+'Cap']=+b.dataset.cap; save(); renderNow(); }));
+  // ---- In the bag: the raw non-vendor mats of the two picks, plus anything you already counted
+  const track={}; if(e1&&es.state!=='capped') Object.assign(track,rawInputs(e1.r)); if(t1&&ts.state!=='capped') Object.assign(track,rawInputs(t1.r));
+  const h=onhand(); const ids=Object.keys(track).filter(id=>{ const m=matById(id); return !(m&&m.vendor!=null); }); for(const id of Object.keys(h)) if(!ids.includes(id)&&h[id]>0) ids.push(id);
+  $('onHand').innerHTML=ids.map(id=>`<div class="oh"><span class="n">${esc(matName(id))}</span><span class="stepper"><button data-oh="${id}" data-d="-5" aria-label="minus five">−5</button><input type="number" min="0" data-ohv="${id}" value="${h[id]||0}"><button data-oh="${id}" data-d="5" aria-label="plus five">+5</button></span><span class="d">${track[id]?`${fmtQty(track[id])} per ${matById(id)&&matById(id).de?'cast':'craft'}`:'not needed by this stop\'s picks'}</span></div>`).join('')||'<span class="dim">Nothing to track at this stop.</span>';
+  $('onHand').querySelectorAll('button[data-oh]').forEach(b=>b.addEventListener('click',()=>{ const id=b.dataset.oh; h[id]=Math.max(0,(h[id]||0)+(+b.dataset.d)); save(); renderNow(); }));
+  $('onHand').querySelectorAll('input[data-ohv]').forEach(i=>i.addEventListener('change',e=>{ h[e.target.dataset.ohv]=Math.max(0,+e.target.value||0); save(); renderNow(); }));
+  // ---- Sell: crafts whose sale price beats mats at your skill, plus DE surplus beyond the next floor (Forever AH: commodities at unit price)
+  const sellPrice=r=>(S.sell&&S.sell[r.id])||r.sell||0;
+  const sellable=[...T.tailoring.filter(r=>sellPrice(r)>0&&c.tail>=r.skill[0]&&!r.output.bop).map(r=>({r,margin:sellPrice(r)-recipeMatCost(r)})),...T.enchanting.filter(r=>r.produces==='item'&&sellPrice(r)>0&&c.ench>=r.skill[0]).map(r=>({r,margin:sellPrice(r)-enchRow(r,c.ench,effectivePrices(),true).cost}))].filter(x=>x.margin>0).sort((a,b)=>b.margin-a.margin).slice(0,3);
+  let surplus=[]; if(fl){ const E=solveEnchanting(c.ench,fl.skill,{}); for(const [id,q] of Object.entries(h)){ const m=matById(id); if(!m||!m.de||!(q>0)) continue; const need=Math.ceil(E.need[id]||0); if(q-need>=5) surplus.push(`${q-need} ${matName(id)}`); } }
+  $('sellOut').innerHTML=(sellable.length?`<b>Sell:</b> ${sellable.map(x=>`${esc(x.r.name)} <span class="pos">+${fmt(x.margin)}</span> each`).join(' · ')}. `:'')+(surplus.length?`<b>Surplus past the ${fl.skill} floor:</b> ${esc(surplus.join(', '))} — post as commodities at unit price.`:'')||(pa.state==='example'?'':'<span class="muted">Sell: set sale prices on Plan → Prices to see which crafts beat their mats.</span>');
+  // ---- ceilings strip: a bracket with any unpriced mat shows a dash, never 0s; hot = the bracket your current craft feeds
   const myIl=t1&&t1.r.output.quality!=='white'?outLevel(t1.r.output):null; const brs=deBrackets().filter(b=>b.min<=35);
   $('ceilStrip').innerHTML=brs.map(b=>{ const a=deValueOrNull(expectedDE(b.min,'armor','green').mats), w=deValueOrNull(expectedDE(b.min,'weapon','green').mats); const hot=myIl!=null&&myIl>=b.min&&myIl<=b.max; return `<span class="cell ${hot?'hot':''}" title="item level ${b.min}–${b.max}${hot?' — your current crafts disenchant into this bracket':''}"><span class="num">${b.min}–${b.max}</span>&ensp;A ${a==null?'—':fmtShort(a*ceil)} · W ${w==null?'—':fmtShort(w*ceil)}</span>`; }).join('');
 }
@@ -884,13 +946,14 @@ function renderAll(){ renderPrices(); renderTailoring(); renderEnchanting(); ren
 function applyTheme(){ const t=prefs.theme||'auto'; if(t==='auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme',t); $('theme').value=t; }
 function setView(v){ if(!$('view-'+v)) v='now'; prefs.tab=v; savePrefs(); document.querySelectorAll('main.view').forEach(m=>m.hidden=m.id!=='view-'+v); document.querySelectorAll('#topTabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.view===v)); }
 function setPlanTab(t){ if(!$('tab-'+t)) t='prices'; prefs.planTab=t; savePrefs(); document.querySelectorAll('#planTabs button').forEach(x=>x.setAttribute('aria-selected',x.dataset.tab===t)); document.querySelectorAll('#view-plan section.tab').forEach(s=>s.classList.toggle('active',s.id==='tab-'+t)); }
-function syncHeader(){ const sel=$('charSel'); sel.innerHTML=Object.keys(S.chars).map(n=>`<option ${n===S.activeChar?'selected':''}>${esc(n)}</option>`).join(''); $('skTail').value=cur().tail; $('skEnch').value=cur().ench; $('planTailFrom').value=cur().tail; $('planEnchFrom').value=cur().ench;
+function syncHeader(){ const sel=$('charSel'); sel.innerHTML=Object.keys(S.chars).map(n=>`<option ${n===S.activeChar?'selected':''}>${esc(n)}</option>`).join(''); $('chLvl').value=cur().lvl||1; $('skTail').value=cur().tail; $('skEnch').value=cur().ench; $('planTailFrom').value=cur().tail; $('planEnchFrom').value=cur().ench;
   $('tailValueMode').value=S.ui.tailValueMode||'de'; $('planTailTo').value=S.ui.planTailTo||150; $('planEnchTo').value=S.ui.planEnchTo||150; $('obsMin').value=S.ui.obsMin||20; $('shCeil').value=S.ui.ceil||70; if($('mPack').options.length) $('mPack').value=S.ui.pack||'de'; }
 document.querySelectorAll('#topTabs button').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
 document.querySelectorAll('#planTabs button').forEach(b=>b.addEventListener('click',()=>setPlanTab(b.dataset.tab)));
 $('charSel').addEventListener('change',e=>{ S.activeChar=e.target.value; S.ui.bagGreens=null; save(); syncHeader(); renderAll(); });
-$('charAdd').addEventListener('click',()=>{ const inp=$('charNew'); if(inp.hidden){ inp.hidden=false; inp.focus(); return; } const n=inp.value.trim(); if(n&&!S.chars[n]){ S.chars[n]={tail:1,ench:1}; S.activeChar=n; save(); } inp.value=''; inp.hidden=true; syncHeader(); renderAll(); });
+$('charAdd').addEventListener('click',()=>{ const inp=$('charNew'); if(inp.hidden){ inp.hidden=false; inp.focus(); return; } const n=inp.value.trim(); if(n&&!S.chars[n]){ S.chars[n]={tail:1,ench:1,lvl:1}; S.activeChar=n; save(); } inp.value=''; inp.hidden=true; syncHeader(); renderAll(); });
 $('charNew').addEventListener('keydown',e=>{ if(e.key==='Enter') $('charAdd').click(); });
+$('chLvl').addEventListener('input',e=>{ cur().lvl=Math.max(1,Math.min(60,+e.target.value||1)); save(); renderNow(); });
 $('skTail').addEventListener('input',e=>{ cur().tail=Math.max(1,Math.min(300,+e.target.value||1)); $('planTailFrom').value=cur().tail; save(); renderTailoring(); renderEnchanting(); renderMacros(); renderSession(); renderNow(); });
 $('skEnch').addEventListener('input',e=>{ cur().ench=Math.max(1,Math.min(300,+e.target.value||1)); $('planEnchFrom').value=cur().ench; save(); renderEnchanting(); renderMacros(); renderSession(); renderNow(); });
 $('theme').addEventListener('change',e=>{ prefs.theme=e.target.value; savePrefs(); applyTheme(); });
