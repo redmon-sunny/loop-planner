@@ -162,7 +162,7 @@ def main():
             out = B.locator('#shuffleOut').inner_text()
             check('Strange Dust 75% ×4–6' in out and 'Classic (C)' in out, 'armor 21–25 row is the Classic table, flagged')
             check(B.evaluate("T.de.length") == 3 and B.evaluate("SRC.build") == '1.60.1.70658', 'DE table comes from recipes.json (SRC), not the shared doc')
-            check(B.evaluate("T.mats.find(m=>m.id==='mote').itemId") == 247786 and B.evaluate("T.mats.find(m=>m.id==='mote').vendor") == 20, 'Mote of Magic got its Forever id and vendor price')
+            check(B.evaluate("T.mats.find(m=>m.id==='mote').itemId") == 247786 and B.evaluate("T.mats.find(m=>m.id==='mote').vendor") == 10, 'Mote of Magic got its Forever id and vendor price (ForeverDB: 10c)')
             B.click('#topTabs button[data-view="session"]'); B.fill('#sLvl', '22'); B.dispatch_event('#sLvl', 'input'); B.click('#sSlot button[data-v="weapon"]')
             check('ilvl 21–25 weapon green' in B.locator('#sBracket').inner_text() and B.locator('#sMats button').first.inner_text() == 'Lesser Astral Essence', 'DE logger offers the row\'s mats for that item level and slot')
             B.click('#sSlot button[data-v="armor"]')
